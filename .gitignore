@@ -6,6 +6,9 @@ coverage
 uploads/*
 !uploads/.gitkeep
 *.log
+*.tsbuildinfo
+apps/web/vite.config.js
+apps/web/vite.config.d.ts
 .DS_Store
 TrendsBirdLimitedBackendInternAssignment.docx.html
 images/
