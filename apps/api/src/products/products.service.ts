@@ -5,7 +5,6 @@ import {
   NotFoundException
 } from "@nestjs/common";
 import { Prisma, StockStatus } from "@prisma/client";
-import sanitizeHtml from "sanitize-html";
 import slugify from "slugify";
 import { PrismaService } from "../prisma/prisma.service";
 import { pageMeta } from "../common/validation/query.dto";
@@ -314,21 +313,7 @@ export class ProductsService {
       sku: dto.sku?.trim() || null,
       shortDescription: dto.shortDescription,
       longDescription: dto.longDescription
-        ? sanitizeHtml(dto.longDescription, {
-            allowedTags: [
-              "p",
-              "br",
-              "strong",
-              "em",
-              "ul",
-              "ol",
-              "li",
-              "h2",
-              "h3",
-              "blockquote"
-            ],
-            allowedAttributes: {}
-          })
+        ? sanitizeDescription(dto.longDescription)
         : null,
       hasVariants: dto.hasVariants,
       price: dto.hasVariants ? null : dto.price,
@@ -399,4 +384,39 @@ function assertSalePrice(
       `Sale price cannot exceed price for ${label}`
     );
   }
+}
+
+/**
+ * Keep product descriptions intentionally conservative: preserve a small set of
+ * formatting tags, discard all attributes (including event handlers and URLs),
+ * and remove executable/embedded elements with their contents.
+ */
+function sanitizeDescription(value: string) {
+  const allowed = new Set([
+    "p",
+    "br",
+    "strong",
+    "em",
+    "ul",
+    "ol",
+    "li",
+    "h2",
+    "h3",
+    "blockquote"
+  ]);
+  const withoutExecutableBlocks = value
+    .replace(
+      /<!--[\s\S]*?-->|<\s*(script|style|iframe|object|embed|svg)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,
+      ""
+    )
+    .replace(/<\s*(script|style|iframe|object|embed|svg)\b[^>]*\/?\s*>/gi, "");
+  return withoutExecutableBlocks.replace(
+    /<\s*\/?\s*([a-z0-9]+)(?:\s[^>]*)?\/?\s*>/gi,
+    (tag, name: string) =>
+      allowed.has(name.toLowerCase())
+        ? tag.trimStart().startsWith("</")
+          ? `</${name.toLowerCase()}>`
+          : `<${name.toLowerCase()}>`
+        : ""
+  );
 }
