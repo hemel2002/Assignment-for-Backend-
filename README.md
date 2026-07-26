@@ -34,6 +34,11 @@ connection for migrations when it is reachable; if your network is IPv4-only, us
 Supabase session pooler URI on port `5432`. Do not use the transaction pooler on port
 `6543` for Prisma migrations. URL-encode special characters in the database password.
 
+If a PostgreSQL connection is unavailable, the same setup can be applied through the
+Supabase SQL Editor: run `apps/api/prisma/migrations/20260726000000_init/migration.sql`
+first, followed by `apps/api/prisma/supabase-seed.sql`. The second script is idempotent,
+creates the reviewer accounts, and records the initial Prisma migration as applied.
+
 Open:
 
 - Dashboard: <http://localhost:5173>

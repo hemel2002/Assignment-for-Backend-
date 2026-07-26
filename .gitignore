@@ -9,6 +9,7 @@ uploads/*
 *.tsbuildinfo
 apps/web/vite.config.js
 apps/web/vite.config.d.ts
+.vercel/
 .DS_Store
 TrendsBirdLimitedBackendInternAssignment.docx.html
 images/
