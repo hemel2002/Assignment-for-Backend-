@@ -11,9 +11,9 @@
     "build": "npm run build -w @trends-bird/api && npm run build -w @trends-bird/web",
     "test": "npm run test -w @trends-bird/api",
     "lint": "npm run lint -w @trends-bird/api && npm run lint -w @trends-bird/web",
-    "db:migrate": "npm run prisma:migrate -w @trends-bird/api",
-    "db:seed": "npm run prisma:seed -w @trends-bird/api",
-    "db:studio": "npm run prisma:studio -w @trends-bird/api"
+    "db:migrate": "npx prisma migrate deploy --schema apps/api/prisma/schema.prisma",
+    "db:seed": "tsx apps/api/prisma/seed.ts",
+    "db:studio": "npx prisma studio --schema apps/api/prisma/schema.prisma"
   },
   "devDependencies": {
     "concurrently": "^9.2.0"

@@ -28,6 +28,12 @@ npm run db:seed
 npm run dev
 ```
 
+Supabase is also supported as the managed PostgreSQL provider. In that case, replace
+`DATABASE_URL` with the full URI from the Supabase **Connect** dialog. Use the direct
+connection for migrations when it is reachable; if your network is IPv4-only, use the
+Supabase session pooler URI on port `5432`. Do not use the transaction pooler on port
+`6543` for Prisma migrations. URL-encode special characters in the database password.
+
 Open:
 
 - Dashboard: <http://localhost:5173>
