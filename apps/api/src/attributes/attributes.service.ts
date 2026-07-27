@@ -1,9 +1,5 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException
-} from "@nestjs/common";
 import slugify from "slugify";
+import { ConflictError, NotFoundError } from "../common/errors/http-error";
 import { PrismaService } from "../prisma/prisma.service";
 import { PageQueryDto, pageMeta } from "../common/validation/query.dto";
 import {
@@ -13,7 +9,6 @@ import {
   UpdateAttributeValueDto
 } from "./attributes.dto";
 
-@Injectable()
 export class AttributesService {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -49,7 +44,7 @@ export class AttributesService {
         }
       }
     });
-    if (!attribute) throw new NotFoundException("Attribute not found");
+    if (!attribute) throw new NotFoundError("Attribute not found");
     return attribute;
   }
 
@@ -102,7 +97,7 @@ export class AttributesService {
   async removeValue(attributeId: string, valueId: string) {
     const value = await this.ensureValue(attributeId, valueId);
     if (value._count.variants) {
-      throw new ConflictException(
+      throw new ConflictError(
         "Attribute value is used by a product variant and cannot be deleted"
       );
     }
@@ -113,7 +108,7 @@ export class AttributesService {
   async remove(id: string) {
     const attribute = await this.findOne(id);
     if (attribute.values.some((value) => value._count.variants > 0)) {
-      throw new ConflictException(
+      throw new ConflictError(
         "Attribute is used by product variants and cannot be deleted"
       );
     }
@@ -126,7 +121,7 @@ export class AttributesService {
       where: { id: valueId, attributeId },
       include: { _count: { select: { variants: true } } }
     });
-    if (!value) throw new NotFoundException("Attribute value not found");
+    if (!value) throw new NotFoundError("Attribute value not found");
     return value;
   }
 }

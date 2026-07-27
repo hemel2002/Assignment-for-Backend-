@@ -1,52 +1,54 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Query
-} from "@nestjs/common";
-import { RequirePermissions } from "../common/decorators/permissions.decorator";
+import { Router } from "express";
+import { requirePermissions } from "../common/auth/permissions.middleware";
+import { asyncHandler, sendSuccess } from "../common/http";
+import { requireUuid } from "../common/validation/params";
+import { validateDto } from "../common/validation/validate";
 import { ProductQueryDto, UpsertProductDto } from "./products.dto";
 import { ProductsService } from "./products.service";
 
-@Controller("products")
-export class ProductsController {
-  constructor(private readonly service: ProductsService) {}
+export function productsRouter(service: ProductsService) {
+  const router = Router();
 
-  @Get()
-  @RequirePermissions("product:read")
-  list(@Query() query: ProductQueryDto) {
-    return this.service.list(query);
-  }
-
-  @Get(":id")
-  @RequirePermissions("product:read")
-  findOne(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.findOne(id);
-  }
-
-  @Post()
-  @RequirePermissions("product:create")
-  create(@Body() dto: UpsertProductDto) {
-    return this.service.create(dto);
-  }
-
-  @Patch(":id")
-  @RequirePermissions("product:update")
-  update(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() dto: UpsertProductDto
-  ) {
-    return this.service.update(id, dto);
-  }
-
-  @Delete(":id")
-  @RequirePermissions("product:delete")
-  remove(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.remove(id);
-  }
+  router.get(
+    "/",
+    requirePermissions("product:read"),
+    validateDto(ProductQueryDto, "query"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.list(req.validatedQuery as ProductQueryDto))
+    )
+  );
+  router.get(
+    "/:id",
+    requirePermissions("product:read"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.findOne(String(req.params.id)))
+    )
+  );
+  router.post(
+    "/",
+    requirePermissions("product:create"),
+    validateDto(UpsertProductDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.create(req.body), 201)
+    )
+  );
+  router.patch(
+    "/:id",
+    requirePermissions("product:update"),
+    requireUuid("id"),
+    validateDto(UpsertProductDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.update(String(req.params.id), req.body))
+    )
+  );
+  router.delete(
+    "/:id",
+    requirePermissions("product:delete"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.remove(String(req.params.id)))
+    )
+  );
+  return router;
 }

@@ -1,9 +1,9 @@
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestError } from "../common/errors/http-error";
 
 describe("product pricing rules", () => {
   const validateSale = (price: number, salePrice?: number) => {
     if (salePrice !== undefined && salePrice > price) {
-      throw new BadRequestException("Sale price cannot exceed price");
+      throw new BadRequestError("Sale price cannot exceed price");
     }
   };
 
@@ -13,7 +13,7 @@ describe("product pricing rules", () => {
   });
 
   it("rejects a sale price above the regular price", () => {
-    expect(() => validateSale(100, 101)).toThrow(BadRequestException);
+    expect(() => validateSale(100, 101)).toThrow(BadRequestError);
   });
 
   it("detects duplicate normalized variant combinations", () => {

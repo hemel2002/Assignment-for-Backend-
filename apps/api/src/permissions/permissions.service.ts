@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
 import slugify from "slugify";
+import { NotFoundError } from "../common/errors/http-error";
 import { PrismaService } from "../prisma/prisma.service";
 import { PageQueryDto, pageMeta } from "../common/validation/query.dto";
 import {
@@ -7,7 +7,6 @@ import {
   UpdatePermissionGroupDto
 } from "./permissions.dto";
 
-@Injectable()
 export class PermissionsService {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -44,7 +43,7 @@ export class PermissionsService {
       where: { id },
       include: { permissions: { orderBy: { action: "asc" } } }
     });
-    if (!group) throw new NotFoundException("Permission group not found");
+    if (!group) throw new NotFoundError("Permission group not found");
     return group;
   }
 

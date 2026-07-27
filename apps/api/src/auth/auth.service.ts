@@ -1,26 +1,20 @@
-import {
-  HttpException,
-  Injectable,
-  UnauthorizedException
-} from "@nestjs/common";
-import { JwtService } from "@nestjs/jwt";
-import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
 import { createHash, randomBytes, randomUUID } from "crypto";
+import jwt, { SignOptions } from "jsonwebtoken";
+import { accessSecret } from "../common/auth/access-token.middleware";
+import {
+  TooManyRequestsError,
+  UnauthorizedError
+} from "../common/errors/http-error";
 import { PrismaService } from "../prisma/prisma.service";
 
-@Injectable()
 export class AuthService {
   private readonly attempts = new Map<
     string,
     { count: number; windowStartedAt: number }
   >();
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly jwt: JwtService,
-    private readonly config: ConfigService
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async login(email: string, password: string, rateLimitKey: string) {
     this.checkRateLimit(rateLimitKey);
@@ -32,7 +26,7 @@ export class AuthService {
       !!user && (await bcrypt.compare(password, user.passwordHash));
     if (!passwordValid || !user?.active || !user.role.active) {
       this.recordFailure(rateLimitKey);
-      throw new UnauthorizedException("Invalid email or password");
+      throw new UnauthorizedError("Invalid email or password");
     }
     this.attempts.delete(rateLimitKey);
     const familyId = randomUUID();
@@ -44,9 +38,9 @@ export class AuthService {
   }
 
   async refresh(rawToken?: string) {
-    if (!rawToken) throw new UnauthorizedException("Refresh token is required");
+    if (!rawToken) throw new UnauthorizedError("Refresh token is required");
     const [sessionId] = rawToken.split(".");
-    if (!sessionId) throw new UnauthorizedException("Invalid refresh token");
+    if (!sessionId) throw new UnauthorizedError("Invalid refresh token");
 
     const session = await this.prisma.session.findUnique({
       where: { id: sessionId },
@@ -57,7 +51,7 @@ export class AuthService {
       session.tokenHash !== hash(rawToken) ||
       session.expiresAt <= new Date()
     ) {
-      throw new UnauthorizedException("Invalid or expired refresh token");
+      throw new UnauthorizedError("Invalid or expired refresh token");
     }
 
     if (session.revokedAt) {
@@ -65,11 +59,11 @@ export class AuthService {
         where: { familyId: session.familyId, revokedAt: null },
         data: { revokedAt: new Date() }
       });
-      throw new UnauthorizedException("Refresh token reuse detected");
+      throw new UnauthorizedError("Refresh token reuse detected");
     }
     if (!session.user.active || !session.user.role.active) {
       await this.revoke(rawToken);
-      throw new UnauthorizedException("Account is inactive or unavailable");
+      throw new UnauthorizedError("Account is inactive or unavailable");
     }
 
     const replacementId = randomUUID();
@@ -149,11 +143,16 @@ export class AuthService {
   }
 
   private signAccessToken(userId: string) {
-    return this.jwt.signAsync({ sub: userId, type: "access" });
+    return Promise.resolve(
+      jwt.sign({ sub: userId, type: "access" }, accessSecret(), {
+        expiresIn: (process.env.JWT_ACCESS_TTL ??
+          "15m") as SignOptions["expiresIn"]
+      })
+    );
   }
 
   private refreshExpiry() {
-    const days = Number(this.config.get("REFRESH_TOKEN_TTL_DAYS", 7));
+    const days = Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 7);
     return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   }
 
@@ -162,9 +161,8 @@ export class AuthService {
     const now = Date.now();
     if (!state || now - state.windowStartedAt > 15 * 60_000) return;
     if (state.count >= 5) {
-      throw new HttpException(
-        "Too many login attempts. Try again in 15 minutes.",
-        429
+      throw new TooManyRequestsError(
+        "Too many login attempts. Try again in 15 minutes."
       );
     }
   }

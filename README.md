@@ -5,11 +5,11 @@ A production-minded administration API and dashboard for the Trends Bird Limited
 ## Stack
 
 - Node.js 22 LTS and TypeScript
-- NestJS 11 REST API
+- Express.js 5 REST API
 - PostgreSQL 16 with Prisma ORM and committed SQL migration
 - Next.js 16 App Router, React 19, and Material UI
 - JWT access tokens plus rotating HttpOnly refresh cookies
-- Swagger/OpenAPI at `/api/docs`
+- API documentation and OpenAPI summary at `/api/docs`
 - Jest, ESLint, Docker Compose, Cloudinary media storage
 
 Node 22 or newer is supported. Node 22 remains a suitable baseline for local development.
@@ -43,7 +43,7 @@ Open:
 
 - Dashboard: <http://localhost:3000>
 - API: <http://localhost:4000/api>
-- Swagger collection: <http://localhost:4000/api/docs>
+- API documentation: <http://localhost:4000/api/docs>
 
 Production:
 
@@ -69,7 +69,8 @@ Change these passwords outside an assessment/demo environment.
 
 ## Authentication and access-control design
 
-The API registers its authentication guard globally. Every newly added route is protected unless it is deliberately decorated public. Login, refresh, and logout are the only public routes.
+The Express API mounts authentication middleware before every administration
+router. Login, refresh, logout, and API documentation are the only public routes.
 
 The short-lived access token is returned to the SPA and kept only in memory. It is sent as `Authorization: Bearer <token>`. The seven-day refresh token is stored as an opaque, `HttpOnly`, `SameSite=Strict` cookie. Only a SHA-256 digest is stored in PostgreSQL.
 
@@ -77,7 +78,7 @@ Every refresh rotates the token in one transaction. Reuse of a revoked token rev
 
 The dashboard uses one shared in-flight refresh promise. Concurrent `401` responses therefore cause one rotation, after which requests retry once. A failed refresh clears the local session.
 
-Route permissions use lower-case `module:action` names. A valid token without the required capability returns `403`; missing, invalid, expired, or inactive identity returns `401`. The limited seed account is intended for direct verification through Swagger or Postman.
+Route permissions use lower-case `module:action` names. A valid token without the required capability returns `403`; missing, invalid, expired, or inactive identity returns `401`. The limited seed account is intended for direct verification through Postman or another API client.
 
 ## Important domain decisions
 
@@ -111,7 +112,9 @@ All URLs are beneath `/api`.
 | Product | `GET/POST /products`, `GET/PATCH/DELETE /products/:id` |
 | Dashboard | `GET /dashboard/summary` |
 
-Swagger documents the DTO-derived request schemas and lets reviewers authorise with an access token. Refresh/logout are browser-cookie based and should be called with credentials enabled.
+The documentation page links to the OpenAPI summary. Protected requests use a
+Bearer access token. Refresh and logout are browser-cookie based and should be
+called with credentials enabled.
 
 Success responses have one shape:
 
@@ -156,7 +159,8 @@ The dashboard uses dedicated, validated forms rather than exposing raw JSON payl
 
 ## Testing
 
-The repository includes focused tests for the permission guard’s allow/deny/public behaviour and core product pricing/combination rules.
+The repository includes focused tests for the permission middleware’s allow/deny
+behaviour and core product pricing/combination rules.
 
 ```bash
 npm test
@@ -166,7 +170,7 @@ For manual access-control verification:
 
 1. Sign in as the catalog user.
 2. Copy the returned access token.
-3. Authorise Swagger.
+3. Add the returned token as a Bearer token in Postman.
 4. Confirm `GET /api/products` succeeds.
 5. Confirm `GET /api/users` or `DELETE /api/roles/:id` returns `403`.
 
@@ -206,7 +210,7 @@ apps/
     prisma/              schema, SQL migration, seed
     src/
       auth/              login, rotation, session, logout
-      common/            global guards, errors, response shape
+      common/            Express middleware, errors, validation, response shape
       permissions/       capability groups
       roles/ users/      access administration
       media/             shared uploads and thumbnails

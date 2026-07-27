@@ -1,10 +1,9 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException
-} from "@nestjs/common";
 import slugify from "slugify";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError
+} from "../common/errors/http-error";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateCategoryDto,
@@ -18,7 +17,6 @@ export type TreeNode = {
   [key: string]: unknown;
 };
 
-@Injectable()
 export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -54,7 +52,7 @@ export class CategoriesService {
         _count: { select: { products: true, children: true } }
       }
     });
-    if (!category) throw new NotFoundException("Category not found");
+    if (!category) throw new NotFoundError("Category not found");
     return category;
   }
 
@@ -70,7 +68,7 @@ export class CategoriesService {
     await this.ensureExists(id);
     if (dto.parentId) {
       if (dto.parentId === id) {
-        throw new BadRequestException("A category cannot be its own parent");
+        throw new BadRequestError("A category cannot be its own parent");
       }
       await this.assertNoCycle(id, dto.parentId);
     }
@@ -84,7 +82,7 @@ export class CategoriesService {
   async remove(id: string) {
     const category = await this.findOne(id);
     if (category._count.children || category._count.products) {
-      throw new ConflictException(
+      throw new ConflictError(
         "Category cannot be deleted while it has children or products"
       );
     }
@@ -97,12 +95,12 @@ export class CategoriesService {
     const visited = new Set<string>();
     while (cursor) {
       if (cursor === categoryId) {
-        throw new BadRequestException(
+        throw new BadRequestError(
           "Parent selection would create a category cycle"
         );
       }
       if (visited.has(cursor)) {
-        throw new BadRequestException("Existing category cycle detected");
+        throw new BadRequestError("Existing category cycle detected");
       }
       visited.add(cursor);
       const parent: { parentId: string | null } | null =
@@ -110,14 +108,14 @@ export class CategoriesService {
           where: { id: cursor },
           select: { parentId: true }
         });
-      if (!parent) throw new NotFoundException("Parent category not found");
+      if (!parent) throw new NotFoundError("Parent category not found");
       cursor = parent.parentId;
     }
   }
 
   private async ensureExists(id: string) {
     const exists = await this.prisma.category.count({ where: { id } });
-    if (!exists) throw new NotFoundException("Category not found");
+    if (!exists) throw new NotFoundError("Category not found");
   }
 
   private data(dto: CreateCategoryDto) {

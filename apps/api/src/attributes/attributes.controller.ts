@@ -1,16 +1,9 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Query
-} from "@nestjs/common";
-import { RequirePermissions } from "../common/decorators/permissions.decorator";
+import { Router } from "express";
+import { requirePermissions } from "../common/auth/permissions.middleware";
+import { asyncHandler, sendSuccess } from "../common/http";
+import { requireUuid } from "../common/validation/params";
 import { PageQueryDto } from "../common/validation/query.dto";
+import { validateDto } from "../common/validation/validate";
 import {
   AttributeValueDto,
   CreateAttributeDto,
@@ -19,68 +12,83 @@ import {
 } from "./attributes.dto";
 import { AttributesService } from "./attributes.service";
 
-@Controller("attributes")
-export class AttributesController {
-  constructor(private readonly service: AttributesService) {}
+export function attributesRouter(service: AttributesService) {
+  const router = Router();
 
-  @Get()
-  @RequirePermissions("attribute:read")
-  list(@Query() query: PageQueryDto) {
-    return this.service.list(query);
-  }
-
-  @Get(":id")
-  @RequirePermissions("attribute:read")
-  findOne(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.findOne(id);
-  }
-
-  @Post()
-  @RequirePermissions("attribute:create")
-  create(@Body() dto: CreateAttributeDto) {
-    return this.service.create(dto);
-  }
-
-  @Patch(":id")
-  @RequirePermissions("attribute:update")
-  update(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() dto: UpdateAttributeDto
-  ) {
-    return this.service.update(id, dto);
-  }
-
-  @Post(":id/values")
-  @RequirePermissions("attribute:update")
-  addValue(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() dto: AttributeValueDto
-  ) {
-    return this.service.addValue(id, dto);
-  }
-
-  @Patch(":id/values/:valueId")
-  @RequirePermissions("attribute:update")
-  updateValue(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Param("valueId", ParseUUIDPipe) valueId: string,
-    @Body() dto: UpdateAttributeValueDto
-  ) {
-    return this.service.updateValue(id, valueId, dto);
-  }
-
-  @Delete(":id/values/:valueId")
-  @RequirePermissions("attribute:delete")
-  removeValue(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Param("valueId", ParseUUIDPipe) valueId: string
-  ) {
-    return this.service.removeValue(id, valueId);
-  }
-
-  @Delete(":id")
-  @RequirePermissions("attribute:delete")
-  remove(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.remove(id);
-  }
+  router.get(
+    "/",
+    requirePermissions("attribute:read"),
+    validateDto(PageQueryDto, "query"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.list(req.validatedQuery as PageQueryDto))
+    )
+  );
+  router.get(
+    "/:id",
+    requirePermissions("attribute:read"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.findOne(String(req.params.id)))
+    )
+  );
+  router.post(
+    "/",
+    requirePermissions("attribute:create"),
+    validateDto(CreateAttributeDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.create(req.body), 201)
+    )
+  );
+  router.patch(
+    "/:id",
+    requirePermissions("attribute:update"),
+    requireUuid("id"),
+    validateDto(UpdateAttributeDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.update(String(req.params.id), req.body))
+    )
+  );
+  router.post(
+    "/:id/values",
+    requirePermissions("attribute:update"),
+    requireUuid("id"),
+    validateDto(AttributeValueDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.addValue(String(req.params.id), req.body), 201)
+    )
+  );
+  router.patch(
+    "/:id/values/:valueId",
+    requirePermissions("attribute:update"),
+    requireUuid("id", "valueId"),
+    validateDto(UpdateAttributeValueDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(
+        req,
+        res,
+        await service.updateValue(String(req.params.id), String(req.params.valueId), req.body)
+      )
+    )
+  );
+  router.delete(
+    "/:id/values/:valueId",
+    requirePermissions("attribute:delete"),
+    requireUuid("id", "valueId"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(
+        req,
+        res,
+        await service.removeValue(String(req.params.id), String(req.params.valueId))
+      )
+    )
+  );
+  router.delete(
+    "/:id",
+    requirePermissions("attribute:delete"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.remove(String(req.params.id)))
+    )
+  );
+  return router;
 }

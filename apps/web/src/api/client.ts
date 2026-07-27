@@ -1,5 +1,5 @@
 // Browser requests stay on the web application's origin. Next.js proxies `/api`
-// to the Nest service, so the strict HttpOnly refresh cookie remains first-party.
+// to the Express service, so the strict HttpOnly refresh cookie remains first-party.
 const API_URL = "/api";
 
 let accessToken: string | null = null;

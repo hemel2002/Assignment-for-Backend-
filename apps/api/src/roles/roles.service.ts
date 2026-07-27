@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException
-} from "@nestjs/common";
+import { ConflictError, NotFoundError } from "../common/errors/http-error";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   StatusPageQueryDto,
@@ -17,7 +13,6 @@ const include = {
   _count: { select: { users: true } }
 } as const;
 
-@Injectable()
 export class RolesService {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -51,7 +46,7 @@ export class RolesService {
 
   async findOne(id: string) {
     const role = await this.prisma.role.findUnique({ where: { id }, include });
-    if (!role) throw new NotFoundException("Role not found");
+    if (!role) throw new NotFoundError("Role not found");
     return role;
   }
 
@@ -94,7 +89,7 @@ export class RolesService {
   async remove(id: string) {
     const role = await this.findOne(id);
     if (role._count.users > 0) {
-      throw new ConflictException(
+      throw new ConflictError(
         "Role cannot be deleted while users are assigned to it"
       );
     }
@@ -113,7 +108,7 @@ export class RolesService {
       where: { id: { in: dto.permissionIds } }
     });
     if (count !== dto.permissionIds.length) {
-      throw new NotFoundException("One or more permissions do not exist");
+      throw new NotFoundError("One or more permissions do not exist");
     }
     return dto.permissionIds;
   }
@@ -140,7 +135,7 @@ export class RolesService {
       }
     });
     if (otherManagerCount === 0) {
-      throw new ConflictException(
+      throw new ConflictError(
         "This change would leave no active role able to manage roles"
       );
     }

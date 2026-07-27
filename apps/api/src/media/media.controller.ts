@@ -1,70 +1,67 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Query,
-  Req,
-  UploadedFiles,
-  UseInterceptors
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { FilesInterceptor } from "@nestjs/platform-express";
-import { memoryStorage } from "multer";
-import { RequirePermissions } from "../common/decorators/permissions.decorator";
+import { Router } from "express";
+import multer from "multer";
+import { requirePermissions } from "../common/auth/permissions.middleware";
+import { UnauthorizedError } from "../common/errors/http-error";
+import { asyncHandler, sendSuccess } from "../common/http";
+import { requireUuid } from "../common/validation/params";
+import { validateDto } from "../common/validation/validate";
 import { MediaQueryDto, UpdateMediaDto } from "./media.dto";
 import { MediaService } from "./media.service";
 
-@Controller("media")
-export class MediaController {
-  constructor(
-    private readonly service: MediaService,
-    private readonly config: ConfigService
-  ) {}
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: Number(process.env.MAX_UPLOAD_BYTES ?? 5_242_880) }
+});
 
-  @Get()
-  @RequirePermissions("media:read")
-  list(@Query() query: MediaQueryDto) {
-    return this.service.list(query);
-  }
+export function mediaRouter(service: MediaService) {
+  const router = Router();
 
-  @Get(":id")
-  @RequirePermissions("media:read")
-  findOne(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.findOne(id);
-  }
-
-  @Post("upload")
-  @RequirePermissions("media:upload")
-  @UseInterceptors(
-    FilesInterceptor("files", 10, {
-      storage: memoryStorage(),
-      limits: { fileSize: Number(process.env.MAX_UPLOAD_BYTES ?? 5_242_880) }
+  router.get(
+    "/",
+    requirePermissions("media:read"),
+    validateDto(MediaQueryDto, "query"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.list(req.validatedQuery as MediaQueryDto))
+    )
+  );
+  router.post(
+    "/upload",
+    requirePermissions("media:upload"),
+    upload.array("files", 10),
+    asyncHandler(async (req, res) => {
+      if (!req.user) throw new UnauthorizedError("Authentication is required");
+      sendSuccess(
+        req,
+        res,
+        await service.upload(req.files as Express.Multer.File[], req.user.id),
+        201
+      );
     })
-  )
-  upload(
-    @UploadedFiles() files: Express.Multer.File[],
-    @Req() request: any
-  ) {
-    return this.service.upload(files, request.user.id);
-  }
-
-  @Patch(":id")
-  @RequirePermissions("media:write")
-  update(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() dto: UpdateMediaDto
-  ) {
-    return this.service.update(id, dto);
-  }
-
-  @Delete(":id")
-  @RequirePermissions("media:delete")
-  remove(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.remove(id);
-  }
+  );
+  router.get(
+    "/:id",
+    requirePermissions("media:read"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.findOne(String(req.params.id)))
+    )
+  );
+  router.patch(
+    "/:id",
+    requirePermissions("media:write"),
+    requireUuid("id"),
+    validateDto(UpdateMediaDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.update(String(req.params.id), req.body))
+    )
+  );
+  router.delete(
+    "/:id",
+    requirePermissions("media:delete"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.remove(String(req.params.id)))
+    )
+  );
+  return router;
 }

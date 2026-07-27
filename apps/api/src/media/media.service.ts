@@ -1,29 +1,23 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { MediaType } from "@prisma/client";
 import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError
+} from "../common/errors/http-error";
 import { PrismaService } from "../prisma/prisma.service";
 import { pageMeta } from "../common/validation/query.dto";
 import { MediaQueryDto, UpdateMediaDto } from "./media.dto";
 
-@Injectable()
 export class MediaService {
   private readonly cloud: typeof cloudinary;
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly config: ConfigService
-  ) {
+  constructor(private readonly prisma: PrismaService) {
     this.cloud = cloudinary;
     this.cloud.config({
-      cloud_name: config.getOrThrow("CLOUDINARY_CLOUD_NAME"),
-      api_key: config.getOrThrow("CLOUDINARY_API_KEY"),
-      api_secret: config.getOrThrow("CLOUDINARY_API_SECRET"),
+      cloud_name: requiredEnv("CLOUDINARY_CLOUD_NAME"),
+      api_key: requiredEnv("CLOUDINARY_API_KEY"),
+      api_secret: requiredEnv("CLOUDINARY_API_SECRET"),
       secure: true
     });
   }
@@ -64,18 +58,18 @@ export class MediaService {
 
   async findOne(id: string) {
     const media = await this.prisma.media.findUnique({ where: { id } });
-    if (!media) throw new NotFoundException("Media asset not found");
+    if (!media) throw new NotFoundError("Media asset not found");
     return media;
   }
 
   async upload(files: Express.Multer.File[], uploadedById: string) {
-    if (!files?.length) throw new BadRequestException("Select at least one file");
+    if (!files?.length) throw new BadRequestError("Select at least one file");
     const created = [];
 
     for (const file of files) {
       const detected = detect(file.buffer);
       if (!detected) {
-        throw new BadRequestException(
+        throw new BadRequestError(
           `${file.originalname}: content is not an allowed JPEG, PNG, WebP or MP4 file`
         );
       }
@@ -143,9 +137,9 @@ export class MediaService {
         }
       }
     });
-    if (!media) throw new NotFoundException("Media asset not found");
+    if (!media) throw new NotFoundError("Media asset not found");
     if (Object.values(media._count).some((count) => count > 0)) {
-      throw new ConflictException(
+      throw new ConflictError(
         "Media is attached to another record and cannot be deleted"
       );
     }
@@ -215,4 +209,10 @@ function detect(buffer: Buffer): {
     return { mime: "video/mp4", extension: "mp4", type: MediaType.VIDEO };
   }
   return null;
+}
+
+function requiredEnv(name: string) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required`);
+  return value;
 }

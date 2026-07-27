@@ -1,57 +1,61 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Query,
-  Req
-} from "@nestjs/common";
-import { RequirePermissions } from "../common/decorators/permissions.decorator";
+import { Router } from "express";
+import { requirePermissions } from "../common/auth/permissions.middleware";
+import { UnauthorizedError } from "../common/errors/http-error";
+import { asyncHandler, sendSuccess } from "../common/http";
+import { requireUuid } from "../common/validation/params";
+import { validateDto } from "../common/validation/validate";
 import { CreateUserDto, UpdateUserDto, UserQueryDto } from "./users.dto";
 import { UsersService } from "./users.service";
 
-@Controller("users")
-export class UsersController {
-  constructor(private readonly service: UsersService) {}
+export function usersRouter(service: UsersService) {
+  const router = Router();
 
-  @Get()
-  @RequirePermissions("user:read")
-  list(@Query() query: UserQueryDto) {
-    return this.service.list(query);
-  }
-
-  @Get(":id")
-  @RequirePermissions("user:read")
-  findOne(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.findOne(id);
-  }
-
-  @Post()
-  @RequirePermissions("user:create")
-  create(@Body() dto: CreateUserDto) {
-    return this.service.create(dto);
-  }
-
-  @Patch(":id")
-  @RequirePermissions("user:update")
-  update(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() dto: UpdateUserDto,
-    @Req() request: any
-  ) {
-    return this.service.update(id, request.user.id, dto);
-  }
-
-  @Delete(":id")
-  @RequirePermissions("user:delete")
-  remove(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Req() request: any
-  ) {
-    return this.service.remove(id, request.user.id);
-  }
+  router.get(
+    "/",
+    requirePermissions("user:read"),
+    validateDto(UserQueryDto, "query"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.list(req.validatedQuery as UserQueryDto))
+    )
+  );
+  router.get(
+    "/:id",
+    requirePermissions("user:read"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.findOne(String(req.params.id)))
+    )
+  );
+  router.post(
+    "/",
+    requirePermissions("user:create"),
+    validateDto(CreateUserDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.create(req.body), 201)
+    )
+  );
+  router.patch(
+    "/:id",
+    requirePermissions("user:update"),
+    requireUuid("id"),
+    validateDto(UpdateUserDto),
+    asyncHandler(async (req, res) => {
+      if (!req.user) throw new UnauthorizedError("Authentication is required");
+      sendSuccess(
+        req,
+        res,
+        await service.update(String(req.params.id), req.user.id, req.body)
+      );
+    })
+  );
+  router.delete(
+    "/:id",
+    requirePermissions("user:delete"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) => {
+      if (!req.user) throw new UnauthorizedError("Authentication is required");
+      sendSuccess(req, res, await service.remove(String(req.params.id), req.user.id));
+    })
+  );
+  return router;
 }

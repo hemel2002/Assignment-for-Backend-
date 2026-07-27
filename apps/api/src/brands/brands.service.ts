@@ -1,14 +1,9 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException
-} from "@nestjs/common";
 import slugify from "slugify";
+import { ConflictError, NotFoundError } from "../common/errors/http-error";
 import { PrismaService } from "../prisma/prisma.service";
 import { pageMeta } from "../common/validation/query.dto";
 import { BrandQueryDto, CreateBrandDto, UpdateBrandDto } from "./brands.dto";
 
-@Injectable()
 export class BrandsService {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -42,7 +37,7 @@ export class BrandsService {
       where: { id },
       include: { logo: true, _count: { select: { products: true } } }
     });
-    if (!brand) throw new NotFoundException("Brand not found");
+    if (!brand) throw new NotFoundError("Brand not found");
     return brand;
   }
 
@@ -65,7 +60,7 @@ export class BrandsService {
   async remove(id: string) {
     const brand = await this.findOne(id);
     if (brand._count.products) {
-      throw new ConflictException(
+      throw new ConflictError(
         "Brand cannot be deleted while products reference it"
       );
     }

@@ -1,56 +1,58 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Query
-} from "@nestjs/common";
-import { RequirePermissions } from "../common/decorators/permissions.decorator";
+import { Router } from "express";
+import { requirePermissions } from "../common/auth/permissions.middleware";
+import { asyncHandler, sendSuccess } from "../common/http";
+import { requireUuid } from "../common/validation/params";
 import { PageQueryDto } from "../common/validation/query.dto";
+import { validateDto } from "../common/validation/validate";
 import {
   CreatePermissionGroupDto,
   UpdatePermissionGroupDto
 } from "./permissions.dto";
 import { PermissionsService } from "./permissions.service";
 
-@Controller("permissions")
-export class PermissionsController {
-  constructor(private readonly service: PermissionsService) {}
+export function permissionsRouter(service: PermissionsService) {
+  const router = Router();
 
-  @Get()
-  @RequirePermissions("permission:read")
-  list(@Query() query: PageQueryDto) {
-    return this.service.list(query);
-  }
-
-  @Get(":id")
-  @RequirePermissions("permission:read")
-  findOne(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.findOne(id);
-  }
-
-  @Post()
-  @RequirePermissions("permission:create")
-  create(@Body() dto: CreatePermissionGroupDto) {
-    return this.service.create(dto);
-  }
-
-  @Patch(":id")
-  @RequirePermissions("permission:update")
-  update(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() dto: UpdatePermissionGroupDto
-  ) {
-    return this.service.update(id, dto);
-  }
-
-  @Delete(":id")
-  @RequirePermissions("permission:delete")
-  remove(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.remove(id);
-  }
+  router.get(
+    "/",
+    requirePermissions("permission:read"),
+    validateDto(PageQueryDto, "query"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.list(req.validatedQuery as PageQueryDto))
+    )
+  );
+  router.get(
+    "/:id",
+    requirePermissions("permission:read"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.findOne(String(req.params.id)))
+    )
+  );
+  router.post(
+    "/",
+    requirePermissions("permission:create"),
+    validateDto(CreatePermissionGroupDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.create(req.body), 201)
+    )
+  );
+  router.patch(
+    "/:id",
+    requirePermissions("permission:update"),
+    requireUuid("id"),
+    validateDto(UpdatePermissionGroupDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.update(String(req.params.id), req.body))
+    )
+  );
+  router.delete(
+    "/:id",
+    requirePermissions("permission:delete"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.remove(String(req.params.id)))
+    )
+  );
+  return router;
 }

@@ -1,41 +1,43 @@
-import { Controller, Get } from "@nestjs/common";
-import { RequirePermissions } from "../common/decorators/permissions.decorator";
+import { Router } from "express";
+import { requirePermissions } from "../common/auth/permissions.middleware";
+import { asyncHandler, sendSuccess } from "../common/http";
 import { PrismaService } from "../prisma/prisma.service";
 
-@Controller("dashboard")
-export class DashboardController {
-  constructor(private readonly prisma: PrismaService) {}
-
-  @Get("summary")
-  @RequirePermissions("dashboard:watch")
-  async summary() {
-    const [
-      products,
-      activeProducts,
-      categories,
-      brands,
-      media,
-      users,
-      lowStockVariants
-    ] = await this.prisma.$transaction([
-      this.prisma.product.count(),
-      this.prisma.product.count({ where: { active: true } }),
-      this.prisma.category.count(),
-      this.prisma.brand.count(),
-      this.prisma.media.count(),
-      this.prisma.user.count(),
-      this.prisma.productVariant.count({
-        where: { active: true, stock: { lte: 5 } }
-      })
-    ]);
-    return {
-      products,
-      activeProducts,
-      categories,
-      brands,
-      media,
-      users,
-      lowStockVariants
-    };
-  }
+export function dashboardRouter(prisma: PrismaService) {
+  const router = Router();
+  router.get(
+    "/summary",
+    requirePermissions("dashboard:watch"),
+    asyncHandler(async (request, response) => {
+      const [
+        products,
+        activeProducts,
+        categories,
+        brands,
+        media,
+        users,
+        lowStockVariants
+      ] = await prisma.$transaction([
+        prisma.product.count(),
+        prisma.product.count({ where: { active: true } }),
+        prisma.category.count(),
+        prisma.brand.count(),
+        prisma.media.count(),
+        prisma.user.count(),
+        prisma.productVariant.count({
+          where: { active: true, stock: { lte: 5 } }
+        })
+      ]);
+      sendSuccess(request, response, {
+        products,
+        activeProducts,
+        categories,
+        brands,
+        media,
+        users,
+        lowStockVariants
+      });
+    })
+  );
+  return router;
 }

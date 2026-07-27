@@ -1,11 +1,10 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException
-} from "@nestjs/common";
 import { Prisma, StockStatus } from "@prisma/client";
 import slugify from "slugify";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError
+} from "../common/errors/http-error";
 import { PrismaService } from "../prisma/prisma.service";
 import { pageMeta } from "../common/validation/query.dto";
 import {
@@ -36,7 +35,6 @@ const fullInclude = {
   }
 } as const;
 
-@Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -117,7 +115,7 @@ export class ProductsService {
       where: { id },
       include: fullInclude
     });
-    if (!product) throw new NotFoundException("Product not found");
+    if (!product) throw new NotFoundError("Product not found");
     return product;
   }
 
@@ -170,33 +168,33 @@ export class ProductsService {
         dto.salePrice !== undefined ||
         dto.stock !== undefined
       ) {
-        throw new BadRequestException(
+        throw new BadRequestError(
           "Variable products cannot store price, sale price, or stock on the product"
         );
       }
       if (!dto.variants.length) {
-        throw new BadRequestException(
+        throw new BadRequestError(
           "A variable product requires at least one variant"
         );
       }
     } else {
       if (dto.variants.length) {
-        throw new BadRequestException("A simple product cannot have variants");
+        throw new BadRequestError("A simple product cannot have variants");
       }
       if (dto.price === undefined || dto.stock === undefined || !dto.sku) {
-        throw new BadRequestException(
+        throw new BadRequestError(
           "A simple product requires SKU, price, and stock"
         );
       }
       assertSalePrice(dto.price, dto.salePrice, "product");
     }
     if (dto.media.filter((item) => item.isThumbnail).length > 1) {
-      throw new BadRequestException(
+      throw new BadRequestError(
         "A product cannot have more than one thumbnail"
       );
     }
     if (new Set(dto.media.map((item) => item.mediaId)).size !== dto.media.length) {
-      throw new BadRequestException("Product media contains duplicate assets");
+      throw new BadRequestError("Product media contains duplicate assets");
     }
 
     const skuValues = [
@@ -204,17 +202,17 @@ export class ProductsService {
       ...dto.variants.map((variant) => variant.sku.trim())
     ];
     if (new Set(skuValues).size !== skuValues.length) {
-      throw new ConflictException("Product and variant SKUs must be unique");
+      throw new ConflictError("Product and variant SKUs must be unique");
     }
     for (const variant of dto.variants) {
       assertSalePrice(variant.price, variant.salePrice, `variant ${variant.sku}`);
       if (!variant.attributeValueIds.length) {
-        throw new BadRequestException(
+        throw new BadRequestError(
           `Variant ${variant.sku} requires attribute values`
         );
       }
       if (variant.media.filter((item) => item.isThumbnail).length > 1) {
-        throw new BadRequestException(
+        throw new BadRequestError(
           `Variant ${variant.sku} has more than one thumbnail`
         );
       }
@@ -223,7 +221,7 @@ export class ProductsService {
       [...variant.attributeValueIds].sort().join("|")
     );
     if (new Set(combinations).size !== combinations.length) {
-      throw new ConflictException(
+      throw new ConflictError(
         "Two variants cannot use the same attribute combination"
       );
     }
@@ -236,7 +234,7 @@ export class ProductsService {
       select: { id: true, attributeId: true }
     });
     if (values.length !== valueIds.length) {
-      throw new BadRequestException(
+      throw new BadRequestError(
         "One or more variant attribute values do not exist"
       );
     }
@@ -248,7 +246,7 @@ export class ProductsService {
         valueAttribute.get(id)
       );
       if (new Set(attributeIds).size !== attributeIds.length) {
-        throw new BadRequestException(
+        throw new BadRequestError(
           `Variant ${variant.sku} selects multiple values from one attribute`
         );
       }
@@ -275,13 +273,13 @@ export class ProductsService {
         : this.prisma.brand.count({ where: { id: { in: [] } } })
     ]);
     if (categoryCount !== dto.categoryIds.length) {
-      throw new BadRequestException("One or more categories do not exist");
+      throw new BadRequestError("One or more categories do not exist");
     }
     if (mediaCount !== mediaIds.length) {
-      throw new BadRequestException("One or more media assets do not exist");
+      throw new BadRequestError("One or more media assets do not exist");
     }
     if (dto.brandId && brandCount !== 1) {
-      throw new BadRequestException("Brand does not exist");
+      throw new BadRequestError("Brand does not exist");
     }
   }
 
@@ -301,7 +299,7 @@ export class ProductsService {
       })
     ]);
     if (products || variants) {
-      throw new ConflictException("A product or variant SKU already exists");
+      throw new ConflictError("A product or variant SKU already exists");
     }
   }
 
@@ -380,7 +378,7 @@ function assertSalePrice(
   label: string
 ) {
   if (salePrice !== undefined && salePrice > price) {
-    throw new BadRequestException(
+    throw new BadRequestError(
       `Sale price cannot exceed price for ${label}`
     );
   }

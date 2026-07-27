@@ -1,9 +1,5 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException
-} from "@nestjs/common";
 import * as bcrypt from "bcrypt";
+import { ForbiddenError, NotFoundError } from "../common/errors/http-error";
 import { PrismaService } from "../prisma/prisma.service";
 import { pageMeta } from "../common/validation/query.dto";
 import {
@@ -25,7 +21,6 @@ const publicSelect = {
   updatedAt: true
 } as const;
 
-@Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -70,7 +65,7 @@ export class UsersService {
       where: { id },
       select: publicSelect
     });
-    if (!user) throw new NotFoundException("User not found");
+    if (!user) throw new NotFoundError("User not found");
     return user;
   }
 
@@ -94,7 +89,7 @@ export class UsersService {
   async update(id: string, actorId: string, dto: UpdateUserDto) {
     await this.findOne(id);
     if (id === actorId && dto.roleId) {
-      throw new ForbiddenException("You cannot change your own role");
+      throw new ForbiddenError("You cannot change your own role");
     }
     if (dto.roleId) await this.ensureRole(dto.roleId);
     return this.prisma.user.update({
@@ -117,7 +112,7 @@ export class UsersService {
 
   async remove(id: string, actorId: string) {
     if (id === actorId) {
-      throw new ForbiddenException("You cannot delete your own account");
+      throw new ForbiddenError("You cannot delete your own account");
     }
     await this.findOne(id);
     await this.prisma.user.delete({ where: { id } });
@@ -129,6 +124,6 @@ export class UsersService {
       where: { id: roleId, active: true },
       select: { id: true }
     });
-    if (!role) throw new NotFoundException("Active role not found");
+    if (!role) throw new NotFoundError("Active role not found");
   }
 }

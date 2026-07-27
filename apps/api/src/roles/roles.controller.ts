@@ -1,59 +1,60 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Query
-} from "@nestjs/common";
-import { RequirePermissions } from "../common/decorators/permissions.decorator";
+import { Router } from "express";
+import { requirePermissions } from "../common/auth/permissions.middleware";
+import { asyncHandler, sendSuccess } from "../common/http";
+import { requireUuid } from "../common/validation/params";
 import { StatusPageQueryDto } from "../common/validation/query.dto";
+import { validateDto } from "../common/validation/validate";
 import { CreateRoleDto, UpdateRoleDto } from "./roles.dto";
 import { RolesService } from "./roles.service";
 
-@Controller("roles")
-export class RolesController {
-  constructor(private readonly service: RolesService) {}
+export function rolesRouter(service: RolesService) {
+  const router = Router();
 
-  @Get()
-  @RequirePermissions("role:read")
-  list(@Query() query: StatusPageQueryDto) {
-    return this.service.list(query);
-  }
-
-  @Get("options")
-  @RequirePermissions("user:create")
-  options() {
-    return this.service.options();
-  }
-
-  @Get(":id")
-  @RequirePermissions("role:read")
-  findOne(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.findOne(id);
-  }
-
-  @Post()
-  @RequirePermissions("role:create")
-  create(@Body() dto: CreateRoleDto) {
-    return this.service.create(dto);
-  }
-
-  @Patch(":id")
-  @RequirePermissions("role:update")
-  update(
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() dto: UpdateRoleDto
-  ) {
-    return this.service.update(id, dto);
-  }
-
-  @Delete(":id")
-  @RequirePermissions("role:delete")
-  remove(@Param("id", ParseUUIDPipe) id: string) {
-    return this.service.remove(id);
-  }
+  router.get(
+    "/",
+    requirePermissions("role:read"),
+    validateDto(StatusPageQueryDto, "query"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.list(req.validatedQuery as StatusPageQueryDto))
+    )
+  );
+  router.get(
+    "/options",
+    requirePermissions("user:create"),
+    asyncHandler(async (req, res) => sendSuccess(req, res, await service.options()))
+  );
+  router.get(
+    "/:id",
+    requirePermissions("role:read"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.findOne(String(req.params.id)))
+    )
+  );
+  router.post(
+    "/",
+    requirePermissions("role:create"),
+    validateDto(CreateRoleDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.create(req.body), 201)
+    )
+  );
+  router.patch(
+    "/:id",
+    requirePermissions("role:update"),
+    requireUuid("id"),
+    validateDto(UpdateRoleDto),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.update(String(req.params.id), req.body))
+    )
+  );
+  router.delete(
+    "/:id",
+    requirePermissions("role:delete"),
+    requireUuid("id"),
+    asyncHandler(async (req, res) =>
+      sendSuccess(req, res, await service.remove(String(req.params.id)))
+    )
+  );
+  return router;
 }
