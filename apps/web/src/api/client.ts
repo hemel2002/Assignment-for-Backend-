@@ -1,7 +1,6 @@
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ??
-  process.env.NEXT_PUBLIC_VITE_API_URL ??
-  "http://localhost:4000/api";
+// Browser requests stay on the web application's origin. Next.js proxies `/api`
+// to the Nest service, so the strict HttpOnly refresh cookie remains first-party.
+const API_URL = "/api";
 
 let accessToken: string | null = null;
 let refreshPromise: Promise<boolean> | null = null;
