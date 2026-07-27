@@ -12,7 +12,7 @@ A production-minded administration API and dashboard for the Trends Bird Limited
 - Swagger/OpenAPI at `/api/docs`
 - Jest, ESLint, Docker Compose, Cloudinary media storage
 
-Node 22 is the supported runtime. A newer local Node version may work, but the reviewer should use Node 22.
+Node 22 or newer is supported. Node 22 remains a suitable baseline for local development.
 
 ## Quick start
 
