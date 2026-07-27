@@ -6,23 +6,26 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { MediaType } from "@prisma/client";
-import { mkdir, unlink, writeFile } from "fs/promises";
-import { extname, join, resolve } from "path";
-import { randomUUID } from "crypto";
-import sharp from "sharp";
+import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
 import { PrismaService } from "../prisma/prisma.service";
 import { pageMeta } from "../common/validation/query.dto";
 import { MediaQueryDto, UpdateMediaDto } from "./media.dto";
 
 @Injectable()
 export class MediaService {
-  private readonly uploadDir: string;
+  private readonly cloud: typeof cloudinary;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService
   ) {
-    this.uploadDir = resolve(config.get("UPLOAD_DIR", "../../uploads"));
+    this.cloud = cloudinary;
+    this.cloud.config({
+      cloud_name: config.getOrThrow("CLOUDINARY_CLOUD_NAME"),
+      api_key: config.getOrThrow("CLOUDINARY_API_KEY"),
+      api_secret: config.getOrThrow("CLOUDINARY_API_SECRET"),
+      secure: true
+    });
   }
 
   async list(query: MediaQueryDto) {
@@ -67,8 +70,6 @@ export class MediaService {
 
   async upload(files: Express.Multer.File[], uploadedById: string) {
     if (!files?.length) throw new BadRequestException("Select at least one file");
-    await mkdir(this.uploadDir, { recursive: true });
-    await mkdir(join(this.uploadDir, "thumbs"), { recursive: true });
     const created = [];
 
     for (const file of files) {
@@ -78,52 +79,43 @@ export class MediaService {
           `${file.originalname}: content is not an allowed JPEG, PNG, WebP or MP4 file`
         );
       }
-      const fileName = `${randomUUID()}.${detected.extension}`;
-      const storedPath = join(this.uploadDir, fileName);
-      await writeFile(storedPath, file.buffer);
-
-      let width: number | undefined;
-      let height: number | undefined;
-      let thumbnailPath: string | undefined;
-      let thumbnailUrl: string | undefined;
-      if (detected.type === MediaType.IMAGE) {
-        const image = sharp(file.buffer);
-        const metadata = await image.metadata();
-        width = metadata.width;
-        height = metadata.height;
-        thumbnailPath = join(this.uploadDir, "thumbs", `${fileName}.webp`);
-        await image
-          .clone()
-          .rotate()
-          .resize(360, 360, { fit: "inside", withoutEnlargement: true })
-          .webp({ quality: 80 })
-          .toFile(thumbnailPath);
-        thumbnailUrl = this.publicUrl(`/uploads/thumbs/${fileName}.webp`);
-      }
+      const asset = await this.uploadBuffer(
+        file.buffer,
+        detected.type === MediaType.IMAGE ? "image" : "video"
+      );
+      const thumbnailUrl =
+        detected.type === MediaType.IMAGE
+          ? this.cloud.url(asset.public_id, {
+              secure: true,
+              transformation: [
+                { width: 360, height: 360, crop: "limit" },
+                { fetch_format: "webp", quality: "auto" }
+              ]
+            })
+          : undefined;
 
       try {
         created.push(
           await this.prisma.media.create({
             data: {
-              fileName,
+              fileName: asset.public_id,
               originalName: file.originalname,
-              storedPath,
-              publicUrl: this.publicUrl(`/uploads/${fileName}`),
+              storedPath: cloudinaryPath(asset.public_id),
+              publicUrl: asset.secure_url,
               mimeType: detected.mime,
               type: detected.type,
-              size: file.size,
-              width,
-              height,
-              thumbnailPath,
+              size: asset.bytes ?? file.size,
+              width: asset.width,
+              height: asset.height,
+              thumbnailPath: thumbnailUrl ? cloudinaryPath(asset.public_id) : undefined,
               thumbnailUrl,
-              title: file.originalname.replace(extname(file.originalname), ""),
+              title: file.originalname.replace(/\.[^.]+$/, ""),
               uploadedById
             }
           })
         );
       } catch (error) {
-        await unlink(storedPath).catch(() => undefined);
-        if (thumbnailPath) await unlink(thumbnailPath).catch(() => undefined);
+        await this.destroyAsset(asset.public_id, detected.type).catch(() => undefined);
         throw error;
       }
     }
@@ -158,17 +150,45 @@ export class MediaService {
       );
     }
     await this.prisma.media.delete({ where: { id } });
-    await unlink(media.storedPath).catch(() => undefined);
-    if (media.thumbnailPath) {
-      await unlink(media.thumbnailPath).catch(() => undefined);
-    }
-    return { message: "Media record and stored files deleted" };
+    const publicId = readCloudinaryPath(media.storedPath);
+    if (publicId) await this.destroyAsset(publicId, media.type).catch(() => undefined);
+    return { message: "Media record and Cloudinary asset deleted" };
   }
 
-  private publicUrl(path: string) {
-    return `${this.config.get("PUBLIC_API_URL", "http://localhost:4000")}${path}`;
+  private uploadBuffer(
+    buffer: Buffer,
+    resourceType: "image" | "video"
+  ): Promise<UploadApiResponse> {
+    return new Promise((resolve, reject) => {
+      const stream = this.cloud.uploader.upload_stream(
+        {
+          folder: "trends-bird",
+          resource_type: resourceType,
+          overwrite: false
+        },
+        (error, result) => {
+          if (error || !result) return reject(error ?? new Error("Cloudinary upload failed"));
+          resolve(result);
+        }
+      );
+      stream.end(buffer);
+    });
+  }
+
+  private async destroyAsset(publicId: string, type: MediaType) {
+    await this.cloud.uploader.destroy(publicId, {
+      resource_type: type === MediaType.IMAGE ? "image" : "video",
+      invalidate: true
+    });
   }
 }
+
+const CLOUDINARY_PATH_PREFIX = "cloudinary://";
+const cloudinaryPath = (publicId: string) => `${CLOUDINARY_PATH_PREFIX}${publicId}`;
+const readCloudinaryPath = (storedPath: string) =>
+  storedPath.startsWith(CLOUDINARY_PATH_PREFIX)
+    ? storedPath.slice(CLOUDINARY_PATH_PREFIX.length)
+    : undefined;
 
 function detect(buffer: Buffer): {
   mime: string;

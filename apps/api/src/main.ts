@@ -5,7 +5,6 @@ import { NestExpressApplication } from "@nestjs/platform-express";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
-import { resolve } from "path";
 import { AppModule } from "./app.module";
 import { ApiExceptionFilter } from "./common/errors/http-exception.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
@@ -20,9 +19,6 @@ async function bootstrap() {
   app.enableCors({
     origin: config.getOrThrow("WEB_ORIGIN"),
     credentials: true
-  });
-  app.useStaticAssets(resolve(config.get("UPLOAD_DIR", "../../uploads")), {
-    prefix: "/uploads"
   });
   app.useGlobalPipes(
     new ValidationPipe({

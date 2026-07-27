@@ -10,7 +10,7 @@ A production-minded administration API and dashboard for the Trends Bird Limited
 - Next.js 16 App Router, React 19, and Material UI
 - JWT access tokens plus rotating HttpOnly refresh cookies
 - Swagger/OpenAPI at `/api/docs`
-- Jest, ESLint, Docker Compose, Sharp image processing
+- Jest, ESLint, Docker Compose, Cloudinary media storage
 
 Node 22 is the supported runtime. A newer local Node version may work, but the reviewer should use Node 22.
 
@@ -178,9 +178,11 @@ See [.env.example](./.env.example). No live secret or database URL is committed.
 | `PORT` | API port |
 | `WEB_ORIGIN` | The one allowed browser origin |
 | `PUBLIC_API_URL` | Base used in stored media URLs |
-| `UPLOAD_DIR` | Original and thumbnail storage |
 | `MAX_UPLOAD_BYTES` | Per-file upload limit |
 | `NEXT_PUBLIC_API_URL` | Browser API base |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
+| `CLOUDINARY_API_KEY` | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Cloudinary API secret |
 
 ## Known issues and deployment notes
 
