@@ -1,4 +1,7 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000/api";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.NEXT_PUBLIC_VITE_API_URL ??
+  "http://localhost:4000/api";
 
 let accessToken: string | null = null;
 let refreshPromise: Promise<boolean> | null = null;

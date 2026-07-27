@@ -7,7 +7,7 @@ A production-minded administration API and dashboard for the Trends Bird Limited
 - Node.js 22 LTS and TypeScript
 - NestJS 11 REST API
 - PostgreSQL 16 with Prisma ORM and committed SQL migration
-- React 19, Vite, and Material UI
+- Next.js 16 App Router, React 19, and Material UI
 - JWT access tokens plus rotating HttpOnly refresh cookies
 - Swagger/OpenAPI at `/api/docs`
 - Jest, ESLint, Docker Compose, Sharp image processing
@@ -41,7 +41,7 @@ creates the reviewer accounts, and records the initial Prisma migration as appli
 
 Open:
 
-- Dashboard: <http://localhost:5173>
+- Dashboard: <http://localhost:3000>
 - API: <http://localhost:4000/api>
 - Swagger collection: <http://localhost:4000/api/docs>
 
@@ -138,16 +138,16 @@ Errors have one safe shape and never expose stack traces, database messages, or 
 | Module | API | Dashboard |
 |---|---|---|
 | Authentication | Complete | Complete |
-| Permission | Complete | Complete; structured action editor |
-| Role | Complete | Partial; create/edit works through the structured contract editor, but the visual module-by-action checkbox grid is not yet implemented |
-| User | Complete | Complete through the structured editor |
-| Media | Complete | Partial; upload and browse are complete, metadata edit/delete remain available through Swagger |
-| Category | Complete | Complete through tree-backed listing and structured editor |
+| Permission | Complete | Complete; searchable permission matrix and action editor |
+| Role | Complete | Complete; visual module-by-action permission assignment |
+| User | Complete | Complete; account, status, contact, and role forms |
+| Media | Complete | Complete; browse, upload, metadata edit, and delete |
+| Category | Complete | Complete; hierarchy listing and parent-aware editor |
 | Brand | Complete | Complete |
-| Attribute | Complete, including nested value routes | Partial; create/edit works, but individual value buttons use Swagger |
-| Product | Complete | Partial; list and atomic create/edit work through the structured contract editor, but combination generation and drag-to-reorder controls are not yet visual widgets |
+| Attribute | Complete, including nested value routes | Complete for attribute create/edit and adding values |
+| Product | Complete | Complete; structured simple and variable product editor |
 
-The backend requirements for all nine modules are implemented. The listed dashboard limitations are presented honestly because the assignment explicitly penalises describing partial UI work as complete.
+The dashboard uses dedicated, validated forms rather than exposing raw JSON payloads to reviewers.
 
 ## Testing
 
@@ -180,14 +180,14 @@ See [.env.example](./.env.example). No live secret or database URL is committed.
 | `PUBLIC_API_URL` | Base used in stored media URLs |
 | `UPLOAD_DIR` | Original and thumbnail storage |
 | `MAX_UPLOAD_BYTES` | Per-file upload limit |
-| `VITE_API_URL` | Browser API base |
+| `NEXT_PUBLIC_API_URL` | Browser API base |
 
 ## Known issues and deployment notes
 
-- A public live URL is not committed because deployment credentials and a hosting target were not provided. The API requires persistent PostgreSQL and persistent upload storage.
+- The included Vercel deployment uses Supabase PostgreSQL. Set `NEXT_PUBLIC_API_URL` on the web project and the server-only API variables on the API project.
 - In-memory login throttling is suitable for one process. A horizontally scaled deployment should use Redis-backed throttling.
-- Local filesystem media is intentional for the assignment. Production should use S3-compatible object storage.
-- The React bundle currently builds as one approximately 500 KB chunk; route-level lazy loading is an optional optimisation.
+- Local filesystem media is intentional for the assignment. Vercel filesystem writes are ephemeral, so production media should use Supabase Storage or another S3-compatible object store.
+- Next.js provides route-level code splitting and static optimization for every dashboard route.
 
 ## Repository layout
 
@@ -204,5 +204,6 @@ apps/
       categories/ brands/ attributes/
       products/          atomic aggregate writes
   web/
-    src/                 React dashboard and shared API client
+    app/                 Next.js App Router pages and layouts
+    src/                 shared dashboard components and API client
 ```
