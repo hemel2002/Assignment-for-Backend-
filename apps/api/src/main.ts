@@ -16,8 +16,22 @@ async function bootstrap() {
   app.setGlobalPrefix("api");
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(cookieParser());
+  const rawOrigin = config.get<string>("WEB_ORIGIN");
+  const allowedOrigins = rawOrigin ? rawOrigin.split(",").map((o) => o.trim()) : [];
+
   app.enableCors({
-    origin: config.getOrThrow("WEB_ORIGIN"),
+    origin: (requestOrigin, callback) => {
+      if (!requestOrigin) return callback(null, true);
+      if (!rawOrigin || rawOrigin === "*") return callback(null, true);
+      if (
+        allowedOrigins.includes(requestOrigin) ||
+        requestOrigin.endsWith(".vercel.app") ||
+        requestOrigin.includes("localhost")
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true
   });
   app.useGlobalPipes(
