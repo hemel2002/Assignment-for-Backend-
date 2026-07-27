@@ -20,6 +20,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/auth/AuthContext";
+import { useResourceAction } from "@/src/hooks/useResourceAction";
 import {
   ConfirmDialog,
   ContentCard,
@@ -49,7 +50,6 @@ export default function PermissionsPage() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<PermissionGroup | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<PermissionGroup | null>(null);
-  const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const load = useCallback(async () => {
@@ -65,6 +65,7 @@ export default function PermissionsPage() {
   }, [query]);
 
   useEffect(() => { void load(); }, [load]);
+  const { busy, execute } = useResourceAction(load, setError);
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -83,40 +84,28 @@ export default function PermissionsPage() {
     actions: current.actions.includes(action) ? current.actions.filter((item) => item !== action) : [...current.actions, action]
   }));
 
-  const save = async () => {
+  const save = () => {
     if (!form.name.trim() || !form.actions.length) {
       setError("Enter a module name and select at least one permission.");
       return;
     }
-    setBusy(true);
-    try {
-      const actions = [...new Set([...form.actions, ...(form.customAction.trim() ? [form.customAction.trim().toLowerCase().replace(/\s+/g, "_")] : [])])];
-      const path = editing?.id ? `/permissions/${editing.id}` : "/permissions";
-      await api(path, {
+    const actions = [...new Set([...form.actions, ...(form.customAction.trim() ? [form.customAction.trim().toLowerCase().replace(/\s+/g, "_")] : [])])];
+    const path = editing?.id ? `/permissions/${editing.id}` : "/permissions";
+    void execute(
+      () => api(path, {
         method: editing?.id ? "PATCH" : "POST",
         body: JSON.stringify({ name: form.name, description: form.description || undefined, actions })
-      });
-      setEditing(undefined);
-      await load();
-    } catch (value) {
-      setError(errorMessage(value));
-    } finally {
-      setBusy(false);
-    }
+      }),
+      () => setEditing(undefined)
+    );
   };
 
-  const remove = async () => {
+  const remove = () => {
     if (!deleting) return;
-    setBusy(true);
-    try {
-      await api(`/permissions/${deleting.id}`, { method: "DELETE" });
-      setDeleting(null);
-      await load();
-    } catch (value) {
-      setError(errorMessage(value));
-    } finally {
-      setBusy(false);
-    }
+    void execute(
+      () => api(`/permissions/${deleting.id}`, { method: "DELETE" }),
+      () => setDeleting(null)
+    );
   };
 
   return (

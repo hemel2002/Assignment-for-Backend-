@@ -27,6 +27,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/auth/AuthContext";
+import { useResourceAction } from "@/src/hooks/useResourceAction";
 import { ConfirmDialog, ContentCard, EmptyRow, FormDialog, LoadingRows, PageAlert, PageHeader, RowActions, StatusChip, TableToolbar, errorMessage } from "@/src/components/Ui";
 
 type Option = { id: string; name: string };
@@ -60,7 +61,6 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Product | null>(null);
   const [form, setForm] = useState<ProductForm>(empty);
-  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,9 +75,9 @@ export default function ProductsPage() {
     } catch (value) { setError(errorMessage(value)); } finally { setLoading(false); }
   }, [query]);
   useEffect(() => { void load(); }, [load]);
+  const { busy, execute } = useResourceAction(load, setError);
 
   const openEdit = async (item: Product) => {
-    setBusy(true);
     try {
       const detail = await api<Product>(`/products/${item.id}`);
       setForm({
@@ -94,31 +94,31 @@ export default function ProductsPage() {
         })) ?? []
       });
       setEditing(item);
-    } catch (value) { setError(errorMessage(value)); } finally { setBusy(false); }
+    } catch (error_) { setError(errorMessage(error_)); }
   };
 
   const updateVariant = (index: number, patch: Partial<Variant>) => setForm((current) => ({ ...current, variants: current.variants.map((variant, i) => i === index ? { ...variant, ...patch } : variant) }));
-  const save = async () => {
+  const save = () => {
     if (!form.name || !form.slug || (!form.hasVariants && !form.sku) || (form.hasVariants && !form.variants.length)) return setError("Complete the product name, slug, SKU, and variant requirements.");
-    setBusy(true);
-    try {
-      const body = {
-        name: form.name, slug: form.slug, ...(form.hasVariants ? {} : { sku: form.sku }), shortDescription: form.shortDescription || undefined, longDescription: form.longDescription || undefined,
-        hasVariants: form.hasVariants, ...(form.hasVariants ? {} : { price: form.price, ...(form.salePrice !== "" ? { salePrice: Number(form.salePrice) } : {}), stock: form.stock }),
-        ...(form.weight !== "" ? { weight: Number(form.weight) } : {}), active: form.active, featured: form.featured, sortOrder: form.sortOrder,
-        ...(form.brandId ? { brandId: form.brandId } : {}), categoryIds: form.categoryIds, media: form.media, variants: form.hasVariants ? form.variants.map((variant) => ({
-          ...variant, ...(variant.salePrice == null ? { salePrice: undefined } : {}), ...(variant.weight == null ? { weight: undefined } : {})
-        })) : []
-      };
-      await api(editing?.id ? `/products/${editing.id}` : "/products", { method: editing?.id ? "PATCH" : "POST", body: JSON.stringify(body) });
-      setEditing(undefined); await load();
-    } catch (value) { setError(errorMessage(value)); } finally { setBusy(false); }
+    const body = {
+      name: form.name, slug: form.slug, ...(form.hasVariants ? {} : { sku: form.sku }), shortDescription: form.shortDescription || undefined, longDescription: form.longDescription || undefined,
+      hasVariants: form.hasVariants, ...(form.hasVariants ? {} : { price: form.price, ...(form.salePrice !== "" ? { salePrice: Number(form.salePrice) } : {}), stock: form.stock }),
+      ...(form.weight !== "" ? { weight: Number(form.weight) } : {}), active: form.active, featured: form.featured, sortOrder: form.sortOrder,
+      ...(form.brandId ? { brandId: form.brandId } : {}), categoryIds: form.categoryIds, media: form.media, variants: form.hasVariants ? form.variants.map((variant) => ({
+        ...variant, ...(variant.salePrice == null ? { salePrice: undefined } : {}), ...(variant.weight == null ? { weight: undefined } : {})
+      })) : []
+    };
+    void execute(
+      () => api(editing?.id ? `/products/${editing.id}` : "/products", { method: editing?.id ? "PATCH" : "POST", body: JSON.stringify(body) }),
+      () => setEditing(undefined)
+    );
   };
-  const remove = async () => {
+  const remove = () => {
     if (!deleting) return;
-    setBusy(true);
-    try { await api(`/products/${deleting.id}`, { method: "DELETE" }); setDeleting(null); await load(); }
-    catch (value) { setError(errorMessage(value)); } finally { setBusy(false); }
+    void execute(
+      () => api(`/products/${deleting.id}`, { method: "DELETE" }),
+      () => setDeleting(null)
+    );
   };
 
   return <>

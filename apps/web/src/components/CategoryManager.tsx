@@ -4,6 +4,7 @@ import { FormControl, FormControlLabel, Grid, InputLabel, MenuItem, Select, Swit
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/auth/AuthContext";
+import { useResourceAction } from "@/src/hooks/useResourceAction";
 import { ConfirmDialog, ContentCard, EmptyRow, FormDialog, LoadingRows, PageAlert, PageHeader, RowActions, StatusChip, TableToolbar, errorMessage } from "./Ui";
 
 type Category = { id: string; parentId?: string; name: string; slug: string; description?: string; active: boolean; sortOrder: number; children?: Category[]; _count: { products: number; children: number }; depth?: number };
@@ -21,7 +22,6 @@ export function CategoryManager() {
   const [editing, setEditing] = useState<Category | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Category | null>(null);
   const [form, setForm] = useState<Form>(empty);
-  const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     try { setItems(flatten(await api<Category[]>("/categories"))); }
@@ -29,20 +29,21 @@ export function CategoryManager() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  const { busy, execute } = useResourceAction(load, setError);
   const visible = items.filter((item) => `${item.name} ${item.slug}`.toLowerCase().includes(search.toLowerCase()));
-  const save = async () => {
+  const save = () => {
     if (!form.name || !form.slug) return setError("Category name and slug are required.");
-    setBusy(true);
-    try {
-      await api(editing?.id ? `/categories/${editing.id}` : "/categories", { method: editing?.id ? "PATCH" : "POST", body: JSON.stringify({ ...form, parentId: form.parentId || undefined, description: form.description || undefined }) });
-      setEditing(undefined); await load();
-    } catch (value) { setError(errorMessage(value)); } finally { setBusy(false); }
+    void execute(
+      () => api(editing?.id ? `/categories/${editing.id}` : "/categories", { method: editing?.id ? "PATCH" : "POST", body: JSON.stringify({ ...form, parentId: form.parentId || undefined, description: form.description || undefined }) }),
+      () => setEditing(undefined)
+    );
   };
-  const remove = async () => {
+  const remove = () => {
     if (!deleting) return;
-    setBusy(true);
-    try { await api(`/categories/${deleting.id}`, { method: "DELETE" }); setDeleting(null); await load(); }
-    catch (value) { setError(errorMessage(value)); } finally { setBusy(false); }
+    void execute(
+      () => api(`/categories/${deleting.id}`, { method: "DELETE" }),
+      () => setDeleting(null)
+    );
   };
   return <>
     <PageHeader eyebrow="Catalog" title="Categories" description="Build a clear, unlimited-depth hierarchy for your products." action={() => { setForm(empty); setEditing(null); }} actionLabel="New category" actionPermission={can("category:create")} />

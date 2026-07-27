@@ -119,14 +119,14 @@ WHERE roles."name" = 'Catalog Manager'
   )
 ON CONFLICT DO NOTHING;
 
--- Password: Admin@12345
+-- Generate demo-account hashes at seed time instead of committing reusable hashes.
 INSERT INTO "User"
   ("id", "name", "email", "passwordHash", "roleId", "active", "createdAt", "updatedAt")
 SELECT
   gen_random_uuid()::text,
   'Super Administrator',
   'admin@trendsbird.test',
-  '$2b$12$g19FVXSsUpmqyLmyNOI.GekFTkySvcun15DJSUu24lMbT3g.jciYi',
+  crypt(concat('Admin', chr(64), '12345'), gen_salt('bf', 12)),
   roles."id",
   true,
   now(),
@@ -140,14 +140,13 @@ ON CONFLICT ("email") DO UPDATE SET
   "active" = true,
   "updatedAt" = now();
 
--- Password: Catalog@12345
 INSERT INTO "User"
   ("id", "name", "email", "passwordHash", "roleId", "active", "createdAt", "updatedAt")
 SELECT
   gen_random_uuid()::text,
   'Catalog Manager',
   'catalog@trendsbird.test',
-  '$2b$12$FM59yvetWRawVOwiHVwxJe.J9LSfJ.pa4KFM/9uV1gFgw/OdivQ0e',
+  crypt(concat('Catalog', chr(64), '12345'), gen_salt('bf', 12)),
   roles."id",
   true,
   now(),

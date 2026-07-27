@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/auth/AuthContext";
+import { useResourceAction } from "@/src/hooks/useResourceAction";
 import {
   ConfirmDialog,
   ContentCard,
@@ -47,7 +48,6 @@ export default function RolesPage() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<Role | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Role | null>(null);
-  const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<RoleForm>(emptyForm);
 
   const load = useCallback(async () => {
@@ -67,9 +67,9 @@ export default function RolesPage() {
   }, [query]);
 
   useEffect(() => { void load(); }, [load]);
+  const { busy, execute } = useResourceAction(load, setError);
 
   const openEdit = async (item: Role) => {
-    setBusy(true);
     try {
       const detail = await api<Role>(`/roles/${item.id}`);
       setForm({
@@ -80,10 +80,8 @@ export default function RolesPage() {
         permissionIds: detail.permissions?.map((permission) => permission.permissionId) ?? []
       });
       setEditing(item);
-    } catch (value) {
-      setError(errorMessage(value));
-    } finally {
-      setBusy(false);
+    } catch (error_) {
+      setError(errorMessage(error_));
     }
   };
 
@@ -102,38 +100,26 @@ export default function RolesPage() {
     }));
   };
 
-  const save = async () => {
+  const save = () => {
     if (!form.name.trim()) {
       setError("Role name is required.");
       return;
     }
-    setBusy(true);
-    try {
-      await api(editing?.id ? `/roles/${editing.id}` : "/roles", {
+    void execute(
+      () => api(editing?.id ? `/roles/${editing.id}` : "/roles", {
         method: editing?.id ? "PATCH" : "POST",
         body: JSON.stringify(form)
-      });
-      setEditing(undefined);
-      await load();
-    } catch (value) {
-      setError(errorMessage(value));
-    } finally {
-      setBusy(false);
-    }
+      }),
+      () => setEditing(undefined)
+    );
   };
 
-  const remove = async () => {
+  const remove = () => {
     if (!deleting) return;
-    setBusy(true);
-    try {
-      await api(`/roles/${deleting.id}`, { method: "DELETE" });
-      setDeleting(null);
-      await load();
-    } catch (value) {
-      setError(errorMessage(value));
-    } finally {
-      setBusy(false);
-    }
+    void execute(
+      () => api(`/roles/${deleting.id}`, { method: "DELETE" }),
+      () => setDeleting(null)
+    );
   };
 
   return (

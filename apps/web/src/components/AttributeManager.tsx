@@ -5,6 +5,7 @@ import { Box, Button, Chip, FormControl, Grid, IconButton, InputLabel, MenuItem,
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/auth/AuthContext";
+import { useResourceAction } from "@/src/hooks/useResourceAction";
 import { ConfirmDialog, ContentCard, EmptyRow, FormDialog, LoadingRows, PageAlert, PageHeader, RowActions, TableToolbar, errorMessage } from "./Ui";
 
 type Value = { id?: string; value: string; slug: string; reference?: string };
@@ -24,7 +25,6 @@ export function AttributeManager() {
   const [editing, setEditing] = useState<Attribute | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Attribute | null>(null);
   const [form, setForm] = useState<Form>(empty);
-  const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     try { setItems((await api<{ items: Attribute[] }>(`/attributes?limit=100&search=${encodeURIComponent(query)}`)).items); }
@@ -32,26 +32,26 @@ export function AttributeManager() {
     finally { setLoading(false); }
   }, [query]);
   useEffect(() => { void load(); }, [load]);
+  const { busy, execute } = useResourceAction(load, setError);
 
   const updateValue = (index: number, patch: Partial<Value>) => setForm((current) => ({ ...current, values: current.values.map((value, i) => i === index ? { ...value, ...patch } : value) }));
-  const save = async () => {
+  const save = () => {
     if (!form.name || !form.slug || (!editing?.id && form.values.some((value) => !value.value || !value.slug))) return setError("Name, slug, and every attribute value are required.");
-    setBusy(true);
-    try {
+    void execute(async () => {
       if (editing?.id) {
         await api(`/attributes/${editing.id}`, { method: "PATCH", body: JSON.stringify({ name: form.name, slug: form.slug, type: form.type }) });
         for (const value of form.values.filter((item) => !item.id)) await api(`/attributes/${editing.id}/values`, { method: "POST", body: JSON.stringify({ value: value.value, slug: value.slug, reference: value.reference || undefined }) });
       } else {
         await api("/attributes", { method: "POST", body: JSON.stringify({ ...form, values: form.values.map((value) => ({ value: value.value, slug: value.slug, reference: value.reference || undefined })) }) });
       }
-      setEditing(undefined); await load();
-    } catch (value) { setError(errorMessage(value)); } finally { setBusy(false); }
+    }, () => setEditing(undefined));
   };
-  const remove = async () => {
+  const remove = () => {
     if (!deleting) return;
-    setBusy(true);
-    try { await api(`/attributes/${deleting.id}`, { method: "DELETE" }); setDeleting(null); await load(); }
-    catch (value) { setError(errorMessage(value)); } finally { setBusy(false); }
+    void execute(
+      () => api(`/attributes/${deleting.id}`, { method: "DELETE" }),
+      () => setDeleting(null)
+    );
   };
   return <>
     <PageHeader eyebrow="Catalog" title="Attributes" description="Create reusable options for product variants and filters." action={() => { setForm(empty); setEditing(null); }} actionLabel="New attribute" actionPermission={can("attribute:create")} />

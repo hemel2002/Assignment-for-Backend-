@@ -21,6 +21,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/auth/AuthContext";
+import { useResourceAction } from "@/src/hooks/useResourceAction";
 import {
   ConfirmDialog,
   ContentCard,
@@ -59,7 +60,6 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<User | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<User | null>(null);
-  const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<UserForm>(emptyForm);
 
   const load = useCallback(async () => {
@@ -80,6 +80,7 @@ export default function UsersPage() {
   }, [can, query]);
 
   useEffect(() => { void load(); }, [load]);
+  const { busy, execute } = useResourceAction(load, setError);
 
   const openEdit = (item: User) => {
     setForm({
@@ -95,47 +96,35 @@ export default function UsersPage() {
     setEditing(item);
   };
 
-  const save = async () => {
+  const save = () => {
     if (!form.name.trim() || !form.email.trim() || !form.roleId || (!editing?.id && form.password.length < 10)) {
       setError("Name, email, role, and a password of at least 10 characters are required.");
       return;
     }
-    setBusy(true);
-    try {
-      const body = {
-        name: form.name,
-        email: form.email,
-        ...(form.password ? { password: form.password } : {}),
-        ...(form.phone ? { phone: form.phone } : {}),
-        ...(form.gender ? { gender: form.gender } : {}),
-        roleId: form.roleId,
-        active: form.active
-      };
-      await api(editing?.id ? `/users/${editing.id}` : "/users", {
+    const body = {
+      name: form.name,
+      email: form.email,
+      ...(form.password ? { password: form.password } : {}),
+      ...(form.phone ? { phone: form.phone } : {}),
+      ...(form.gender ? { gender: form.gender } : {}),
+      roleId: form.roleId,
+      active: form.active
+    };
+    void execute(
+      () => api(editing?.id ? `/users/${editing.id}` : "/users", {
         method: editing?.id ? "PATCH" : "POST",
         body: JSON.stringify(body)
-      });
-      setEditing(undefined);
-      await load();
-    } catch (value) {
-      setError(errorMessage(value));
-    } finally {
-      setBusy(false);
-    }
+      }),
+      () => setEditing(undefined)
+    );
   };
 
-  const remove = async () => {
+  const remove = () => {
     if (!deleting) return;
-    setBusy(true);
-    try {
-      await api(`/users/${deleting.id}`, { method: "DELETE" });
-      setDeleting(null);
-      await load();
-    } catch (value) {
-      setError(errorMessage(value));
-    } finally {
-      setBusy(false);
-    }
+    void execute(
+      () => api(`/users/${deleting.id}`, { method: "DELETE" }),
+      () => setDeleting(null)
+    );
   };
 
   return (

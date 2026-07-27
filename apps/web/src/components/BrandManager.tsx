@@ -4,6 +4,7 @@ import { Avatar, FormControlLabel, Grid, Switch, Table, TableBody, TableCell, Ta
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/auth/AuthContext";
+import { useResourceAction } from "@/src/hooks/useResourceAction";
 import { ConfirmDialog, ContentCard, EmptyRow, FormDialog, LoadingRows, PageAlert, PageHeader, RowActions, StatusChip, TableToolbar, errorMessage } from "./Ui";
 
 type Brand = { id: string; name: string; slug: string; description?: string; active: boolean; logo?: { thumbnailUrl?: string; publicUrl?: string }; _count: { products: number } };
@@ -21,7 +22,6 @@ export function BrandManager() {
   const [editing, setEditing] = useState<Brand | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Brand | null>(null);
   const [form, setForm] = useState<Form>(empty);
-  const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
     try { setItems((await api<{ items: Brand[] }>(`/brands?limit=100&search=${encodeURIComponent(query)}`)).items); }
@@ -29,20 +29,21 @@ export function BrandManager() {
     finally { setLoading(false); }
   }, [query]);
   useEffect(() => { void load(); }, [load]);
+  const { busy, execute } = useResourceAction(load, setError);
 
-  const save = async () => {
+  const save = () => {
     if (!form.name || !form.slug) return setError("Brand name and slug are required.");
-    setBusy(true);
-    try {
-      await api(editing?.id ? `/brands/${editing.id}` : "/brands", { method: editing?.id ? "PATCH" : "POST", body: JSON.stringify({ ...form, description: form.description || undefined }) });
-      setEditing(undefined); await load();
-    } catch (value) { setError(errorMessage(value)); } finally { setBusy(false); }
+    void execute(
+      () => api(editing?.id ? `/brands/${editing.id}` : "/brands", { method: editing?.id ? "PATCH" : "POST", body: JSON.stringify({ ...form, description: form.description || undefined }) }),
+      () => setEditing(undefined)
+    );
   };
-  const remove = async () => {
+  const remove = () => {
     if (!deleting) return;
-    setBusy(true);
-    try { await api(`/brands/${deleting.id}`, { method: "DELETE" }); setDeleting(null); await load(); }
-    catch (value) { setError(errorMessage(value)); } finally { setBusy(false); }
+    void execute(
+      () => api(`/brands/${deleting.id}`, { method: "DELETE" }),
+      () => setDeleting(null)
+    );
   };
 
   return <>
