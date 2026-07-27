@@ -45,6 +45,11 @@ Open:
 - API: <http://localhost:4000/api>
 - Swagger collection: <http://localhost:4000/api/docs>
 
+Production:
+
+- Dashboard: <https://web-five-rosy-93.vercel.app>
+- API documentation: <https://api-eight-lac-55.vercel.app/api/docs>
+
 Production builds:
 
 ```bash
@@ -79,7 +84,7 @@ Route permissions use lower-case `module:action` names. A valid token without th
 - Permission removal cascades only role-permission links. It does not delete roles.
 - A role with assigned users cannot be deleted. A role change that would leave no active holder of `role:update` is rejected.
 - Users are hard-deleted. Self-role changes and self-deletion are rejected.
-- Media deletion is refused while any user, category, brand, attribute value, product, or variant still references it. Stored originals and thumbnails are removed after the database record.
+- Media is uploaded directly to Cloudinary. Image thumbnails use Cloudinary transformations, and deletion removes the remote asset only after reference checks pass.
 - Category deletion is refused while it has children or products. Parent updates walk the ancestor chain and reject cycles.
 - Brand deletion is refused while products reference it.
 - Attribute/value deletion is refused once used by a variant.
@@ -186,9 +191,11 @@ See [.env.example](./.env.example). No live secret or database URL is committed.
 
 ## Known issues and deployment notes
 
-- The included Vercel deployment uses Supabase PostgreSQL. Set `NEXT_PUBLIC_API_URL` on the web project and the server-only API variables on the API project.
+- The included Vercel deployment uses Supabase PostgreSQL and Cloudinary media storage. Set the Cloudinary variables only on the API project; never expose the API secret in `NEXT_PUBLIC_` variables.
+- For the Vercel web project, set **Root Directory** to `apps/web`, use the **Next.js** framework preset, and enable **Include files outside the root directory in the Build Step** so npm workspaces can use the repository lockfile.
+- The web app proxies browser `/api` calls to the API service. This keeps the strict HttpOnly refresh cookie first-party while the API remains on its own Vercel project.
 - In-memory login throttling is suitable for one process. A horizontally scaled deployment should use Redis-backed throttling.
-- Local filesystem media is intentional for the assignment. Vercel filesystem writes are ephemeral, so production media should use Supabase Storage or another S3-compatible object store.
+- Existing media records created before the Cloudinary migration may still point to an earlier temporary URL; upload them again to move them into Cloudinary.
 - Next.js provides route-level code splitting and static optimization for every dashboard route.
 
 ## Repository layout
