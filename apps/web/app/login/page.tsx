@@ -6,13 +6,16 @@ import {
   Inventory2Outlined,
   LockOutlined,
   MailOutline,
-  ShieldOutlined
+  ShieldOutlined,
+  Visibility,
+  VisibilityOff
 } from "@mui/icons-material";
 import {
   Alert,
   Box,
   Button,
   CircularProgress,
+  IconButton,
   InputAdornment,
   Paper,
   Stack,
@@ -28,6 +31,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("admin@trendsbird.test");
   const [password, setPassword] = useState("Admin@12345");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -102,19 +106,30 @@ export default function LoginPage() {
           <TextField
             fullWidth
             required
-            type="password"
+            type={showPassword ? "text" : "password"}
             placeholder="Enter your password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            slotProps={{ input: { startAdornment: <InputAdornment position="start"><LockOutlined fontSize="small" /></InputAdornment> } }}
+            slotProps={{
+              input: {
+                startAdornment: <InputAdornment position="start"><LockOutlined fontSize="small" /></InputAdornment>,
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                    </IconButton>
+                  </InputAdornment>
+                )
+              }
+            }}
           />
           <Button fullWidth size="large" variant="contained" type="submit" disabled={submitting} endIcon={!submitting && <ArrowForward />} sx={{ mt: 3, height: 48 }}>
             {submitting ? <CircularProgress size={23} color="inherit" /> : "Sign in"}
           </Button>
-          <Box sx={{ mt: 3, p: 2, borderRadius: 2.5, bgcolor: "#f7f8fc", border: "1px solid", borderColor: "divider" }}>
-            <Typography variant="caption" color="text.secondary">Demo account</Typography>
-            <Typography variant="body2" fontWeight={700}>Credentials are prefilled for assignment review.</Typography>
-          </Box>
         </Paper>
       </Box>
     </Box>

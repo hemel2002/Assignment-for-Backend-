@@ -1,6 +1,6 @@
 "use client";
 
-import { Add, Close, Inventory2Outlined } from "@mui/icons-material";
+import { Add, Close, CloudUploadOutlined, ImageOutlined, Inventory2Outlined } from "@mui/icons-material";
 import {
   Avatar,
   Box,
@@ -31,6 +31,7 @@ import { useResourceAction } from "@/src/hooks/useResourceAction";
 import { ConfirmDialog, ContentCard, EmptyRow, FormDialog, LoadingRows, PageAlert, PageHeader, RowActions, StatusChip, TableToolbar, errorMessage } from "@/src/components/Ui";
 
 type Option = { id: string; name: string };
+type MediaOption = { id: string; originalName: string; title?: string; publicUrl: string; thumbnailUrl?: string; type: string };
 type Category = Option & { children?: Category[] };
 type Attribute = { id: string; name: string; values: { id: string; value: string }[] };
 type Variant = { sku: string; price: number; salePrice?: number; stock: number; lowStockThreshold: number; weight?: number; active: boolean; attributeValueIds: string[]; media: any[] };
@@ -54,6 +55,7 @@ export default function ProductsPage() {
   const [brands, setBrands] = useState<Option[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [attributes, setAttributes] = useState<Attribute[]>([]);
+  const [mediaLibrary, setMediaLibrary] = useState<MediaOption[]>([]);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -61,17 +63,19 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Product | null>(null);
   const [form, setForm] = useState<ProductForm>(empty);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [products, brandResult, categoryResult, attributeResult] = await Promise.all([
+      const [products, brandResult, categoryResult, attributeResult, mediaResult] = await Promise.all([
         api<{ items: Product[] }>(`/products?limit=100&search=${encodeURIComponent(query)}`),
         api<{ items: Option[] }>("/brands?limit=100"),
         api<Category[]>("/categories"),
-        api<{ items: Attribute[] }>("/attributes?limit=100")
+        api<{ items: Attribute[] }>("/attributes?limit=100"),
+        api<{ items: MediaOption[] }>("/media?limit=100&type=IMAGE")
       ]);
-      setItems(products.items); setBrands(brandResult.items); setCategories(flattenCategories(categoryResult)); setAttributes(attributeResult.items);
+      setItems(products.items); setBrands(brandResult.items); setCategories(flattenCategories(categoryResult)); setAttributes(attributeResult.items); setMediaLibrary(mediaResult.items);
     } catch (value) { setError(errorMessage(value)); } finally { setLoading(false); }
   }, [query]);
   useEffect(() => { void load(); }, [load]);
@@ -97,6 +101,28 @@ export default function ProductsPage() {
     } catch (error_) { setError(errorMessage(error_)); }
   };
 
+  const uploadProductImage = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    setUploadingMedia(true);
+    const body = new FormData();
+    body.append("files", file);
+    try {
+      const uploaded = await api<MediaOption[]>("/media/upload", { method: "POST", body });
+      const media = uploaded[0];
+      if (!media) throw new Error("The image upload did not return a media asset");
+      setMediaLibrary((current) => [media, ...current.filter((item) => item.id !== media.id)]);
+      setForm((current) => ({
+        ...current,
+        media: [{ mediaId: media.id, isThumbnail: true, isGallery: true, sortOrder: 0 }]
+      }));
+    } catch (value) {
+      setError(errorMessage(value));
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
   const updateVariant = (index: number, patch: Partial<Variant>) => setForm((current) => ({ ...current, variants: current.variants.map((variant, i) => i === index ? { ...variant, ...patch } : variant) }));
   const save = () => {
     if (!form.name || !form.slug || (!form.hasVariants && !form.sku) || (form.hasVariants && !form.variants.length)) return setError("Complete the product name, slug, SKU, and variant requirements.");
@@ -120,6 +146,8 @@ export default function ProductsPage() {
       () => setDeleting(null)
     );
   };
+  const selectedMediaId = form.media[0]?.mediaId ?? "";
+  const selectedMedia = mediaLibrary.find((item) => item.id === selectedMediaId);
 
   return <>
     <PageHeader eyebrow="Catalog" title="Products" description="Manage simple products, variants, inventory, prices, and catalog placement." action={() => { setForm(empty); setEditing(null); }} actionLabel="New product" actionPermission={can("product:create")} />
@@ -130,7 +158,22 @@ export default function ProductsPage() {
         {loading && <LoadingRows columns={7} />}
         {!loading && !items.length && <EmptyRow columns={7} />}
         {!loading && items.map((item) => <TableRow key={item.id} hover>
-          <TableCell><Stack direction="row" gap={1.5} alignItems="center"><Avatar variant="rounded" sx={{ bgcolor: "#edf0ff", color: "primary.main" }}><Inventory2Outlined /></Avatar><div><Typography fontWeight={780}>{item.name}</Typography><Typography variant="caption" color="text.secondary">{item.slug}</Typography></div></Stack></TableCell>
+          <TableCell>
+            <Stack direction="row" gap={1.5} alignItems="center">
+              <Avatar
+                variant="rounded"
+                src={item.media?.[0]?.media?.thumbnailUrl ?? item.media?.[0]?.media?.publicUrl}
+                alt={item.name}
+                sx={{ bgcolor: "#edf0ff", color: "primary.main" }}
+              >
+                <Inventory2Outlined />
+              </Avatar>
+              <div>
+                <Typography fontWeight={780}>{item.name}</Typography>
+                <Typography variant="caption" color="text.secondary">{item.slug}</Typography>
+              </div>
+            </Stack>
+          </TableCell>
           <TableCell><Typography variant="body2" fontWeight={650}>{item.hasVariants ? "Variable product" : item.sku}</Typography></TableCell><TableCell>{item.brand?.name ?? "—"}</TableCell>
           <TableCell>{item.priceRange?.min == null ? "—" : item.priceRange.min === item.priceRange.max ? `$${item.priceRange.min.toFixed(2)}` : `$${item.priceRange.min.toFixed(2)} – $${item.priceRange.max?.toFixed(2)}`}</TableCell>
           <TableCell><Chip size="small" label={`${item.totalStock ?? 0} units`} color={(item.totalStock ?? 0) <= 5 ? "warning" : "default"} /></TableCell><TableCell><StatusChip active={item.active} /></TableCell>
@@ -144,6 +187,35 @@ export default function ProductsPage() {
         <Grid size={{ xs: 12, md: 4 }}><TextField fullWidth required label="Slug" value={form.slug} onChange={(event) => setForm({ ...form, slug: slugify(event.target.value) })} /></Grid>
         <Grid size={{ xs: 12, md: 3 }}><FormControl fullWidth><InputLabel>Brand</InputLabel><Select label="Brand" value={form.brandId} onChange={(event) => setForm({ ...form, brandId: event.target.value })}><MenuItem value="">No brand</MenuItem>{brands.map((brand) => <MenuItem key={brand.id} value={brand.id}>{brand.name}</MenuItem>)}</Select></FormControl></Grid>
         <Grid size={{ xs: 12 }}><FormControl fullWidth><InputLabel>Categories</InputLabel><Select multiple label="Categories" value={form.categoryIds} onChange={(event) => setForm({ ...form, categoryIds: event.target.value as string[] })} renderValue={(selected) => categories.filter((item) => selected.includes(item.id)).map((item) => item.name).join(", ")}>{categories.map((category) => <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>)}</Select></FormControl></Grid>
+        <Grid size={{ xs: 12 }}>
+          <Stack spacing={1.25} sx={{ p: 2, border: "1px solid", borderColor: "divider", borderRadius: 2.5, bgcolor: "#fafbfe" }}>
+            <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ sm: "center" }} gap={1}>
+              <Stack direction="row" gap={1} alignItems="center" sx={{ flex: 1 }}>
+                <ImageOutlined color="primary" fontSize="small" />
+                <Box><Typography fontWeight={750}>Product image</Typography><Typography variant="caption" color="text.secondary">Choose an existing media asset or upload a new one.</Typography></Box>
+              </Stack>
+              <Button component="label" variant="outlined" size="small" startIcon={<CloudUploadOutlined />} disabled={uploadingMedia}>
+                {uploadingMedia ? "Uploading…" : "Upload image"}
+                <input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void uploadProductImage(event.target.files)} />
+              </Button>
+            </Stack>
+            <Stack direction={{ xs: "column", sm: "row" }} gap={1.5} alignItems={{ sm: "center" }}>
+              <Avatar variant="rounded" src={selectedMedia?.thumbnailUrl ?? selectedMedia?.publicUrl} alt={selectedMedia?.title ?? selectedMedia?.originalName ?? "Product image"} sx={{ width: 72, height: 72, bgcolor: "#edf0ff", color: "primary.main" }}>
+                <Inventory2Outlined />
+              </Avatar>
+              <FormControl fullWidth size="small">
+                <InputLabel>Selected image</InputLabel>
+                <Select label="Selected image" value={selectedMediaId} onChange={(event) => {
+                  const mediaId = event.target.value;
+                  setForm((current) => ({ ...current, media: mediaId ? [{ mediaId, isThumbnail: true, isGallery: true, sortOrder: 0 }] : [] }));
+                }}>
+                  <MenuItem value="">No image</MenuItem>
+                  {mediaLibrary.map((media) => <MenuItem key={media.id} value={media.id}>{media.title ?? media.originalName}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Stack>
+          </Stack>
+        </Grid>
         <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth multiline minRows={2} label="Short description" value={form.shortDescription} onChange={(event) => setForm({ ...form, shortDescription: event.target.value })} /></Grid>
         <Grid size={{ xs: 12, md: 6 }}><TextField fullWidth multiline minRows={2} label="Long description" value={form.longDescription} onChange={(event) => setForm({ ...form, longDescription: event.target.value })} /></Grid>
       </Grid>

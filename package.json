@@ -12,7 +12,6 @@
     "test": "npm run test -w @trends-bird/api",
     "lint": "npm run lint -w @trends-bird/api && npm run lint -w @trends-bird/web",
     "db:migrate": "npx prisma migrate deploy --schema apps/api/prisma/schema.prisma",
-    "db:seed": "tsx apps/api/prisma/seed.ts",
     "db:studio": "npx prisma studio --schema apps/api/prisma/schema.prisma"
   },
   "devDependencies": {

@@ -54,7 +54,7 @@ Lists user accounts with pagination, search, roleId, and active status filters.
       {
         "id": "u1u2u3u4-5u6u-7u8u-9u0u-1u2u3u4u5u6u",
         "name": "Jane Doe",
-        "email": "jane@trendsbird.test",
+        "email": "jane@example.com",
         "phone": "+1234567890",
         "gender": "FEMALE",
         "active": true,
@@ -93,7 +93,7 @@ Creates a new user account.
 ```json
 {
   "name": "Jane Doe",
-  "email": "jane@trendsbird.test",
+  "email": "jane@example.com",
   "password": "SecurePassword@123",
   "phone": "+1234567890",
   "gender": "FEMALE",

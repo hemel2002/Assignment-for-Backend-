@@ -24,7 +24,6 @@ npm install
 docker compose up -d postgres
 npm run prisma:generate -w @trends-bird/api
 npm run db:migrate
-npm run db:seed
 npm run dev
 ```
 
@@ -33,11 +32,6 @@ Supabase is also supported as the managed PostgreSQL provider. In that case, rep
 connection for migrations when it is reachable; if your network is IPv4-only, use the
 Supabase session pooler URI on port `5432`. Do not use the transaction pooler on port
 `6543` for Prisma migrations. URL-encode special characters in the database password.
-
-If a PostgreSQL connection is unavailable, the same setup can be applied through the
-Supabase SQL Editor: run `apps/api/prisma/migrations/20260726000000_init/migration.sql`
-first, followed by `apps/api/prisma/supabase-seed.sql`. The second script is idempotent,
-creates the reviewer accounts, and records the initial Prisma migration as applied.
 
 Open:
 
@@ -58,15 +52,6 @@ npm test
 npm run lint
 ```
 
-## Seeded reviewer accounts
-
-| Account | Email | Password | Access |
-|---|---|---|---|
-| Super Administrator | `admin@trendsbird.test` | `Admin@12345` | Every permission |
-| Catalog Manager | `catalog@trendsbird.test` | `Catalog@12345` | Dashboard and catalog only; no permission, role, or user access |
-
-Change these passwords outside an assessment/demo environment.
-
 ## Authentication and access-control design
 
 The Express API mounts authentication middleware before every administration
@@ -78,7 +63,7 @@ Every refresh rotates the token in one transaction. Reuse of a revoked token rev
 
 The dashboard uses one shared in-flight refresh promise. Concurrent `401` responses therefore cause one rotation, after which requests retry once. A failed refresh clears the local session.
 
-Route permissions use lower-case `module:action` names. A valid token without the required capability returns `403`; missing, invalid, expired, or inactive identity returns `401`. The limited seed account is intended for direct verification through Postman or another API client.
+Route permissions use lower-case `module:action` names. A valid token without the required capability returns `403`; missing, invalid, expired, or inactive identity returns `401`.
 
 ## Important domain decisions
 
@@ -207,7 +192,7 @@ See [.env.example](./.env.example). No live secret or database URL is committed.
 ```text
 apps/
   api/
-    prisma/              schema, SQL migration, seed
+    prisma/              schema and SQL migrations
     src/
       auth/              login, rotation, session, logout
       common/            Express middleware, errors, validation, response shape

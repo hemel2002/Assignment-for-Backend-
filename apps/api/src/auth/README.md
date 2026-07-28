@@ -41,8 +41,8 @@ Authenticates a user with email and password.
 #### Request Body (`LoginDto`)
 ```json
 {
-  "email": "admin@trendsbird.test",
-  "password": "Admin@12345"
+  "email": "admin@example.com",
+  "password": "your-password"
 }
 ```
 
@@ -126,7 +126,7 @@ Authorization: Bearer <accessToken>
   "data": {
     "id": "c1f7b8a2-3e4d-4e5f-9a0b-1c2d3e4f5a6b",
     "name": "Super Administrator",
-    "email": "admin@trendsbird.test",
+    "email": "admin@example.com",
     "phone": "+1234567890",
     "avatar": null,
     "role": {
